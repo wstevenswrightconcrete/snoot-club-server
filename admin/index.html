@@ -6,25 +6,22 @@
 <style>
   :root { --navy:#0B1B32; --silver:#C0C0C0; }
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--navy);color:var(--silver);margin:0}
-  .wrap{max-width:880px;margin:32px auto;padding:0 16px}
+  .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
   .card{background:#132A4B;border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
   input,textarea,button{font:inherit}
   input,textarea,select{width:100%;padding:10px;border-radius:10px;border:1px solid #244;background:#0B1B32;color:var(--silver)}
   label{display:block;margin:10px 0 6px}
-  button{background:var(--silver);color:var(--navy);border:0;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .muted{opacity:.8}
+  button{background:var(--silver);color:var(--navy);border:0;padding:10px 12px;border-radius:10px;font-weight:700;cursor:pointer}
   table{width:100%;border-collapse:collapse}
   td,th{border-bottom:1px solid #244;padding:8px}
-  .switch{display:flex;gap:10px;align-items:center;margin:6px 0 12px}
-  .flex{display:flex;gap:12px;flex-wrap:wrap}
-  .right{margin-left:auto}
-  .ok{color:#9ef59e}
-  .err{color:#ff9b9b}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .muted{opacity:.8}
+  .flex{display:flex;gap:8px;flex-wrap:wrap}
+  .ok{color:#9ef59e}.err{color:#ff9b9b}
 </style>
 <div class="wrap">
   <h1>Snoot Club — Admin</h1>
-  <p class="muted">Create meetings and notify everyone (SMS + Push).</p>
+  <p class="muted">Approve new members and send meeting reminders to approved members only.</p>
 
   <div class="card">
     <label>Render Base URL</label>
@@ -37,34 +34,29 @@
     </div>
   </div>
 
+  <div class="card" id="pendingCard" style="display:none">
+    <h2 style="margin-top:0">Pending Requests</h2>
+    <table id="pending"><thead><tr><th>Phone</th><th>Requested</th><th>Actions</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card" id="approvedCard" style="display:none">
+    <h2 style="margin-top:0">Approved Members</h2>
+    <table id="approved"><thead><tr><th>Phone</th><th>Actions</th></tr></thead><tbody></tbody></table>
+  </div>
+
   <div class="card" id="meetingCard" style="display:none">
     <h2 style="margin-top:0">New Meeting</h2>
     <label>Title</label><input id="title" />
     <label>Description (optional)</label><textarea id="desc" rows="3"></textarea>
     <div class="row">
       <div><label>Location</label><input id="loc" value="Lodge" /></div>
-      <div><label>Starts At (your local time)</label><input id="dt" type="datetime-local" /></div>
+      <div><label>Starts At (local)</label><input id="dt" type="datetime-local" /></div>
     </div>
     <label>Reminder Minutes</label><input id="rem" type="number" value="60" />
-    <div class="switch"><input type="checkbox" id="sms" checked /><label for="sms">Send SMS to members</label></div>
-    <div class="switch"><input type="checkbox" id="push" checked /><label for="push">Send Push to devices</label></div>
-    <div class="flex">
+    <div class="flex" style="margin-top:10px">
       <button id="btnCreate">Create & Notify</button>
+      <button id="btnRefresh">Refresh</button>
       <span id="createState" class="muted"></span>
-      <button id="btnLoad" class="right">Refresh Lists</button>
-    </div>
-  </div>
-
-  <div class="card" id="listsCard" style="display:none">
-    <div class="row">
-      <div>
-        <h3>Members (SMS)</h3>
-        <table id="members"><thead><tr><th>Phone</th><th></th></tr></thead><tbody></tbody></table>
-      </div>
-      <div>
-        <h3>Meetings</h3>
-        <table id="meetings"><thead><tr><th>Title</th><th>When</th><th>Location</th></tr></thead><tbody></tbody></table>
-      </div>
     </div>
   </div>
 
@@ -74,11 +66,10 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const show = (el, v=true)=>el.style.display = v ? '' : 'none';
-const out = (msg, cls='') => { const el=$('out'); el.textContent=typeof msg==='string'?msg:JSON.stringify(msg,null,2); el.className=cls; };
-
+const out = (msg, cls='') => { const el=$('out'); el.textContent = typeof msg==='string'?msg:JSON.stringify(msg,null,2); el.className=cls; };
 let authed = false;
-function base(){ return $('base').value.trim().replace(/\/+$/,''); }
 
+function base(){ return $('base').value.trim().replace(/\/+$/,''); }
 async function api(path, method='GET', body){
   const url = base() + path;
   const opts = { method, headers:{ 'content-type':'application/json' } };
@@ -91,16 +82,51 @@ async function api(path, method='GET', body){
 $('btnAuth').onclick = async ()=>{
   try{
     const res = await api('/auth/admin','POST',{ pin:$('pin').value.trim() });
-    if (res && res.ok){ authed=true; out('Admin unlocked', 'ok'); show($('meetingCard'), true); show($('listsCard'), true); loadLists(); }
-    else { out('Wrong PIN', 'err'); }
-  }catch(e){ out('Error: '+e.message, 'err'); }
+    if (res && res.ok){ authed=true; out('Admin unlocked','ok'); show($('pendingCard'),1); show($('approvedCard'),1); show($('meetingCard'),1); loadLists(); }
+    else out('Wrong PIN','err');
+  }catch(e){ out('Error: '+e.message,'err'); }
 };
+
+$('btnRefresh').onclick = ()=>loadLists();
+
+async function loadLists(){
+  try{
+    // pending
+    const pending = await api('/members?status=pending');
+    const pbody = $('pending').querySelector('tbody'); pbody.innerHTML='';
+    (pending||[]).sort((a,b)=>a.createdAt-b.createdAt).forEach(m=>{
+      const tr = document.createElement('tr');
+      const when = m.createdAt ? new Date(m.createdAt).toLocaleString() : '';
+      tr.innerHTML = `<td>${m.phone}</td><td>${when}</td>
+        <td class="flex">
+          <button data-a="${m.id}">Approve</button>
+          <button data-r="${m.id}">Reject</button>
+        </td>`;
+      tr.querySelector('[data-a]').onclick = async ()=>{ await api('/members/'+m.id+'/approve','POST',{}); loadLists(); };
+      tr.querySelector('[data-r]').onclick = async ()=>{ await api('/members/'+m.id+'/reject','POST',{}); loadLists(); };
+      pbody.appendChild(tr);
+    });
+
+    // approved
+    const approved = await api('/members?status=approved');
+    const abody = $('approved').querySelector('tbody'); abody.innerHTML='';
+    (approved||[]).forEach(m=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${m.phone}</td>
+        <td class="flex">
+          <button data-del="${m.id}">Remove</button>
+        </td>`;
+      tr.querySelector('[data-del]').onclick = async ()=>{ await api('/members/'+m.id,'DELETE'); loadLists(); };
+      abody.appendChild(tr);
+    });
+  }catch(e){ out('Load error: '+e.message,'err'); }
+}
 
 $('btnCreate').onclick = async ()=>{
   if(!authed) return out('Unlock admin first','err');
   try{
     $('createState').textContent='Sending...';
-    const local = $('dt').value; // yyyy-MM-ddTHH:mm (local)
+    const local = $('dt').value;
     const iso = local ? new Date(local).toISOString() : new Date().toISOString();
     const payload = {
       title: $('title').value.trim(),
@@ -108,42 +134,12 @@ $('btnCreate').onclick = async ()=>{
       location: $('loc').value.trim(),
       startsAt: iso,
       reminderMinutes: parseInt($('rem').value || '60', 10),
-      sendSms: $('sms').checked,
-      sendPush: $('push').checked
+      sendSms: true,
+      sendPush: true
     };
     const res = await api('/meetings','POST', payload);
     $('createState').textContent='Sent';
     out(res,'ok');
-    loadLists();
   }catch(e){ $('createState').textContent='Error'; out('Error: '+e.message,'err'); }
 };
-
-$('btnLoad').onclick = ()=>loadLists();
-
-async function loadLists(){
-  try{
-    const ms = await api('/meetings');
-    const tbody = $('meetings').querySelector('tbody');
-    tbody.innerHTML='';
-    (ms||[]).forEach(m=>{
-      const tr = document.createElement('tr');
-      const when = new Date(m.startsAt).toLocaleString();
-      tr.innerHTML = `<td>${m.title||''}</td><td>${when}</td><td>${m.location||''}</td>`;
-      tbody.appendChild(tr);
-    });
-
-    const mems = await api('/members');
-    const tbody2 = $('members').querySelector('tbody');
-    tbody2.innerHTML='';
-    (mems||[]).forEach(m=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${m.phone}</td><td><button data-id="${m.id}">Remove</button></td>`;
-      tr.querySelector('button').onclick = async ()=>{
-        await api('/members/'+m.id, 'DELETE');
-        loadLists();
-      };
-      tbody2.appendChild(tr);
-    });
-  }catch(e){ out('Load error: '+e.message,'err'); }
-}
 </script>
