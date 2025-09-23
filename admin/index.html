@@ -6,8 +6,8 @@
 <style>
   :root { --navy:#0B1B32; --silver:#C0C0C0; }
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--navy);color:var(--silver);margin:0}
-  .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
-  .card{background:#132A4B;border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .wrap{max-width:1000px;margin:32px auto;padding:0 16px;text-align:center}
+  .card{background:#132A4B;border-radius:16px;padding:18px;margin:16px auto;box-shadow:0 8px 24px rgba(0,0,0,.25);text-align:left}
   input,textarea,button{font:inherit}
   input,textarea,select{width:100%;padding:10px;border-radius:10px;border:1px solid #244;background:#0B1B32;color:var(--silver)}
   label{display:block;margin:10px 0 6px}
@@ -18,9 +18,16 @@
   .muted{opacity:.8}
   .flex{display:flex;gap:8px;flex-wrap:wrap}
   .ok{color:#9ef59e}.err{color:#ff9b9b}
+
+  /* Logo */
+  .logo{display:block;width:140px;max-width:40vw;height:auto;margin:0 auto 8px;filter: drop-shadow(0 6px 18px rgba(0,0,0,.35));}
+  .brand-title{margin:6px 0 16px;font-weight:800;letter-spacing:.4px}
 </style>
+
 <div class="wrap">
-  <h1>Snoot Club — Admin</h1>
+  <!-- LOGO -->
+  <img class="logo" src="./logo.png" alt="Snoot Club logo" />
+  <h1 class="brand-title">Snoot Club — Admin</h1>
   <p class="muted">Approve new members, promote to admin, and send meeting reminders to approved members only.</p>
 
   <div class="card">
@@ -81,8 +88,8 @@ async function api(path, method='GET', body){
 
 $('btnAuth').onclick = async ()=>{
   try{
-    const res = await api('/auth/admin','POST',{ phone: 'DUMMY', pin: $('pin').value.trim() }); // just check PIN format; full auth done on create/modify
-    if (res && res.ok || $('pin').value.trim()) {  // keep page unlocked after PIN entry
+    const res = await api('/auth/admin','POST',{ phone: 'DUMMY', pin: $('pin').value.trim() }); // unlock UI after PIN entry
+    if ((res && res.ok) || $('pin').value.trim()) {
       authed=true; out('Admin unlocked','ok'); show($('pendingCard'),1); show($('approvedCard'),1); show($('meetingCard'),1); loadLists();
     } else out('Wrong PIN','err');
   }catch(e){ out('Error: '+e.message,'err'); }
