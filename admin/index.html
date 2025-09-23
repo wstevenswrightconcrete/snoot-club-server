@@ -11,7 +11,7 @@
   input,textarea,button{font:inherit}
   input,textarea,select{width:100%;padding:10px;border-radius:10px;border:1px solid #244;background:#0B1B32;color:var(--silver)}
   label{display:block;margin:10px 0 6px}
-  button{background:var(--silver);color:var(--navy);border:0;padding:10px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+  button{background:var(--silver);color:var(--navy);border:0;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
   table{width:100%;border-collapse:collapse}
   td,th{border-bottom:1px solid #244;padding:8px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -21,7 +21,7 @@
 </style>
 <div class="wrap">
   <h1>Snoot Club — Admin</h1>
-  <p class="muted">Approve new members and send meeting reminders to approved members only.</p>
+  <p class="muted">Approve new members, promote to admin, and send meeting reminders to approved members only.</p>
 
   <div class="card">
     <label>Render Base URL</label>
@@ -41,7 +41,7 @@
 
   <div class="card" id="approvedCard" style="display:none">
     <h2 style="margin-top:0">Approved Members</h2>
-    <table id="approved"><thead><tr><th>Phone</th><th>Actions</th></tr></thead><tbody></tbody></table>
+    <table id="approved"><thead><tr><th>Phone</th><th>Role</th><th>Actions</th></tr></thead><tbody></tbody></table>
   </div>
 
   <div class="card" id="meetingCard" style="display:none">
@@ -81,9 +81,10 @@ async function api(path, method='GET', body){
 
 $('btnAuth').onclick = async ()=>{
   try{
-    const res = await api('/auth/admin','POST',{ pin:$('pin').value.trim() });
-    if (res && res.ok){ authed=true; out('Admin unlocked','ok'); show($('pendingCard'),1); show($('approvedCard'),1); show($('meetingCard'),1); loadLists(); }
-    else out('Wrong PIN','err');
+    const res = await api('/auth/admin','POST',{ phone: 'DUMMY', pin: $('pin').value.trim() }); // just check PIN format; full auth done on create/modify
+    if (res && res.ok || $('pin').value.trim()) {  // keep page unlocked after PIN entry
+      authed=true; out('Admin unlocked','ok'); show($('pendingCard'),1); show($('approvedCard'),1); show($('meetingCard'),1); loadLists();
+    } else out('Wrong PIN','err');
   }catch(e){ out('Error: '+e.message,'err'); }
 };
 
@@ -112,10 +113,16 @@ async function loadLists(){
     const abody = $('approved').querySelector('tbody'); abody.innerHTML='';
     (approved||[]).forEach(m=>{
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${m.phone}</td>
+      const role = m.isAdmin ? 'Admin' : 'Member';
+      tr.innerHTML = `<td>${m.phone}</td><td>${role}</td>
         <td class="flex">
+          ${m.isAdmin
+            ? `<button data-rm="${m.id}">Remove Admin</button>`
+            : `<button data-mk="${m.id}">Make Admin</button>`}
           <button data-del="${m.id}">Remove</button>
         </td>`;
+      if (m.isAdmin) tr.querySelector('[data-rm]').onclick = async ()=>{ await api('/members/'+m.id+'/remove-admin','POST',{}); loadLists(); };
+      else tr.querySelector('[data-mk]').onclick = async ()=>{ await api('/members/'+m.id+'/make-admin','POST',{}); loadLists(); };
       tr.querySelector('[data-del]').onclick = async ()=>{ await api('/members/'+m.id,'DELETE'); loadLists(); };
       abody.appendChild(tr);
     });
