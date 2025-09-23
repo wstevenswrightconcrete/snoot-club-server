@@ -13,20 +13,17 @@
   label{display:block;margin:10px 0 6px}
   button{background:var(--silver);color:var(--navy);border:0;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
   table{width:100%;border-collapse:collapse}
-  td,th{border-bottom:1px solid #244;padding:8px}
+  td,th{border-bottom:1px solid #244;padding:8px;text-align:left}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .muted{opacity:.8}
   .flex{display:flex;gap:8px;flex-wrap:wrap}
   .ok{color:#9ef59e}.err{color:#ff9b9b}
-
-  /* Logo */
   .logo{display:block;width:140px;max-width:40vw;height:auto;margin:0 auto 8px;filter: drop-shadow(0 6px 18px rgba(0,0,0,.35));}
   .brand-title{margin:6px 0 16px;font-weight:800;letter-spacing:.4px}
 </style>
 
 <div class="wrap">
-  <!-- LOGO -->
-  <img class="logo" src="./logo.png" alt="Snoot Club logo" />
+  <img class="logo" src="/admin/logo.png" alt="Snoot Club logo" />
   <h1 class="brand-title">Snoot Club — Admin</h1>
   <p class="muted">Approve new members, promote to admin, and send meeting reminders to approved members only.</p>
 
@@ -43,12 +40,16 @@
 
   <div class="card" id="pendingCard" style="display:none">
     <h2 style="margin-top:0">Pending Requests</h2>
-    <table id="pending"><thead><tr><th>Phone</th><th>Requested</th><th>Actions</th></tr></thead><tbody></tbody></table>
+    <table id="pending"><thead>
+      <tr><th>Name</th><th>Email</th><th>Phone</th><th>Requested</th><th>Actions</th></tr>
+    </thead><tbody></tbody></table>
   </div>
 
   <div class="card" id="approvedCard" style="display:none">
     <h2 style="margin-top:0">Approved Members</h2>
-    <table id="approved"><thead><tr><th>Phone</th><th>Role</th><th>Actions</th></tr></thead><tbody></tbody></table>
+    <table id="approved"><thead>
+      <tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Actions</th></tr>
+    </thead><tbody></tbody></table>
   </div>
 
   <div class="card" id="meetingCard" style="display:none">
@@ -76,7 +77,10 @@ const show = (el, v=true)=>el.style.display = v ? '' : 'none';
 const out = (msg, cls='') => { const el=$('out'); el.textContent = typeof msg==='string'?msg:JSON.stringify(msg,null,2); el.className=cls; };
 let authed = false;
 
-function base(){ return $('base').value.trim().replace(/\/+$/,''); }
+function base(){
+  const v = $('base').value.trim();
+  return v ? v.replace(/\/+$/,'') : (location.origin);
+}
 async function api(path, method='GET', body){
   const url = base() + path;
   const opts = { method, headers:{ 'content-type':'application/json' } };
@@ -88,9 +92,14 @@ async function api(path, method='GET', body){
 
 $('btnAuth').onclick = async ()=>{
   try{
-    const res = await api('/auth/admin','POST',{ phone: 'DUMMY', pin: $('pin').value.trim() }); // unlock UI after PIN entry
+    const res = await api('/auth/admin','POST',{ phone: 'DUMMY', pin: $('pin').value.trim() });
     if ((res && res.ok) || $('pin').value.trim()) {
-      authed=true; out('Admin unlocked','ok'); show($('pendingCard'),1); show($('approvedCard'),1); show($('meetingCard'),1); loadLists();
+      authed=true;
+      out('Admin unlocked','ok');
+      show($('pendingCard'),1);
+      show($('approvedCard'),1);
+      show($('meetingCard'),1);
+      loadLists();
     } else out('Wrong PIN','err');
   }catch(e){ out('Error: '+e.message,'err'); }
 };
@@ -102,10 +111,10 @@ async function loadLists(){
     // pending
     const pending = await api('/members?status=pending');
     const pbody = $('pending').querySelector('tbody'); pbody.innerHTML='';
-    (pending||[]).sort((a,b)=>a.createdAt-b.createdAt).forEach(m=>{
+    (pending||[]).sort((a,b)=> (a.createdAt||0)-(b.createdAt||0)).forEach(m=>{
       const tr = document.createElement('tr');
       const when = m.createdAt ? new Date(m.createdAt).toLocaleString() : '';
-      tr.innerHTML = `<td>${m.phone}</td><td>${when}</td>
+      tr.innerHTML = `<td>${m.name||''}</td><td>${m.email||''}</td><td>${m.phone}</td><td>${when}</td>
         <td class="flex">
           <button data-a="${m.id}">Approve</button>
           <button data-r="${m.id}">Reject</button>
@@ -121,7 +130,7 @@ async function loadLists(){
     (approved||[]).forEach(m=>{
       const tr = document.createElement('tr');
       const role = m.isAdmin ? 'Admin' : 'Member';
-      tr.innerHTML = `<td>${m.phone}</td><td>${role}</td>
+      tr.innerHTML = `<td>${m.name||''}</td><td>${m.email||''}</td><td>${m.phone}</td><td>${role}</td>
         <td class="flex">
           ${m.isAdmin
             ? `<button data-rm="${m.id}">Remove Admin</button>`
@@ -156,4 +165,9 @@ $('btnCreate').onclick = async ()=>{
     out(res,'ok');
   }catch(e){ $('createState').textContent='Error'; out('Error: '+e.message,'err'); }
 };
+
+// set default base to current host
+document.addEventListener('DOMContentLoaded', () => {
+  $('base').value = location.origin;
+});
 </script>
