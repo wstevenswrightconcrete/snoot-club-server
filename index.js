@@ -15,26 +15,30 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// --- DB ---
+// ---------- DB ----------
 const db = new Low(new JSONFile(path.join(__dirname, 'db.json')), { members: [], meetings: [] });
 await db.read();
 db.data ||= { members: [], meetings: [] };
 await db.write();
 
-// --- Env ---
+// ---------- ENV ----------
 const ADMIN_PIN   = process.env.ADMIN_PIN || '123456';
 const CRON_SECRET = process.env.CRON_SECRET || 'changeme';
 const TWILIO_FROM = process.env.TWILIO_FROM || '';
+
 const expo = new Expo();
 const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-// --- Static admin (logo etc) ---
+// ---------- STATIC / ADMIN ----------
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
-// --- Helpers ---
+// ---------- HELPERS ----------
 const byStatus = (status) => db.data.members.filter(m => m.status === status);
+
+// ---------- HEALTH ----------
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 // ========== AUTH ==========
 app.post('/auth/admin', async (req, res) => {
@@ -46,14 +50,27 @@ app.post('/auth/admin', async (req, res) => {
 
 // ========== MEMBERSHIP ==========
 app.post('/register', async (req, res) => {
-  const { phone, name, expoToken } = req.body || {};
+  const { phone, name, email, expoToken } = req.body || {};
   if (!phone) return res.status(400).json({ ok: false, error: 'phone required' });
 
   let m = db.data.members.find(x => x.phone === phone);
   if (!m) {
-    m = { id: nanoid(), phone, name: name || '', status: 'pending', isAdmin: false, expoTokens: [], createdAt: Date.now() };
+    m = {
+      id: nanoid(),
+      phone,
+      name: name || '',
+      email: email || '',
+      status: 'pending',
+      isAdmin: false,
+      expoTokens: [],
+      createdAt: Date.now(),
+    };
     db.data.members.push(m);
+  } else {
+    if (name && !m.name) m.name = name;
+    if (email && !m.email) m.email = email;
   }
+
   if (expoToken && !m.expoTokens.includes(expoToken)) m.expoTokens.push(expoToken);
   await db.write();
 
@@ -205,7 +222,6 @@ app.post('/tasks/notify-24h', async (req, res) => {
   }
 });
 
-// ========== START ==========
+// ---------- START ----------
 const port = process.env.PORT || 3333;
 app.listen(port, () => console.log('Snoot Club server on ' + port));
-
