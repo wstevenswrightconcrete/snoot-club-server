@@ -1,0 +1,16 @@
+services:
+- type: web
+  name: snoot-club-server
+  env: node
+  plan: free
+  buildCommand: "npm install"
+  startCommand: "node index.js"
+  envVars:
+  - key: ADMIN_PIN
+    sync: false
+  - key: TWILIO_ACCOUNT_SID
+    sync: false
+  - key: TWILIO_AUTH_TOKEN
+    sync: false
+  - key: TWILIO_FROM
+    sync: false

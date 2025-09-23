@@ -1,0 +1,10 @@
+version: '3.9'
+services:
+  snootclub:
+    build: .
+    ports: [ "3333:3333" ]
+    environment:
+      - ADMIN_PIN=${ADMIN_PIN:-123456}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM=${TWILIO_FROM}
