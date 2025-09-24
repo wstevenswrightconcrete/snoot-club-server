@@ -5,87 +5,157 @@
   <title>Snoot Club — Admin</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root { --navy:#0D1B2A; --silver:#E0E6ED; --card:#132A4B; --accent:#5DA3FA; }
+    :root { --navy:#0D1B2A; --silver:#E0E6ED; --card:#132A4B; --line:#1b3357; --accent:#5DA3FA; }
+    * { box-sizing: border-box; }
     body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
            background:var(--navy); color:var(--silver); }
-    header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #1b3357; }
+
+    /* Gate overlay (forces PIN before anything loads) */
+    .gate {
+      position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--navy);
+      padding: 24px; gap: 12px;
+    }
+    .gate img { height: 96px; }
+    .gate h1 { margin: 6px 0 12px; font-size: 22px; }
+    .gate input {
+      padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+      background:#0c1730; color:#fff; width: 280px;
+    }
+    .btn { background:var(--accent); color:#051225; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
+    .btn.sm { padding:4px 8px; font-size:12px; }
+    .error { color:#ffb4b4; }
+
+    header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }
     header img { height:56px; }
     header h1 { font-size:20px; margin:0; font-weight:700; }
-    .pin { margin-left:auto; display:flex; align-items:center; gap:8px; }
-    .wrap {padding: 16px;display: grid;grid-template-columns: 1fr;   /* <-- one full-width column */ gap: 16px;max-width: 1100px;            /* center content on big screens */ margin: 0 auto;}
+    header .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
+
+    /* One clean column (full width sections) */
+    .wrap {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr;   /* full-width sections stacked */
+      gap: 16px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
     .card { background:var(--card); border-radius:16px; padding:14px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
     h2 { margin:6px 0 12px 0; font-size:16px; }
+
     table { width:100%; border-collapse:collapse; }
-    th, td {text-align: left;padding: 8px;border-bottom: 1px solid #1b3357;white-space: normal;word-break: break-word;}
-    .btn { background:var(--accent); color:#051225; border:none; padding:6px 10px; border-radius:10px; cursor:pointer; }
-    .btn.sm { padding:4px 8px; font-size:12px; }
+    th, td { text-align:left; padding:8px; border-bottom:1px solid var(--line); white-space: normal; word-break: break-word; }
+
+    input[type="text"], input[type="number"] {
+      padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background:#0c1730; color:#fff;
+    }
     .row { display:flex; gap:8px; flex-wrap:wrap; }
-    .error { color:#ffb4b4; margin:8px 0; }
   </style>
 </head>
 <body>
-  <header>
+  <!-- LOGIN GATE -->
+  <div id="gate" class="gate" aria-modal="true" role="dialog">
     <img src="./logo.png" alt="Snoot Club" />
     <h1>Admin</h1>
-    <div class="pin">
-      <label for="pin">PIN</label>
-      <input id="pin" type="password" placeholder="Admin PIN" style="padding:6px 8px;border-radius:8px;border:1px solid #1b3357;background:#0c1730;color:#fff;" />
-      <button class="btn" onclick="savePin()">Set</button>
-    </div>
-  </header>
+    <input id="pinInput" type="password" placeholder="Enter Admin PIN" />
+    <button class="btn" onclick="verifyPin()">Enter</button>
+    <div id="gateErr" class="error"></div>
+  </div>
 
-  <div class="wrap">
-    <div class="card">
-      <h2>Pending</h2>
-      <div id="err-pending" class="error"></div>
-      <table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
-        <tbody id="tbody-pending"></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h2>Approved</h2>
-      <div id="err-approved" class="error"></div>
-      <table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Admin</th><th>Actions</th></tr></thead>
-        <tbody id="tbody-approved"></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h2>Rejected</h2>
-      <div id="err-rejected" class="error"></div>
-      <table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
-        <tbody id="tbody-rejected"></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h2>Create Meeting</h2>
-      <div id="err-meet" class="error"></div>
-      <div class="row">
-        <input id="mtitle" placeholder="Title" />
-        <input id="mloc" placeholder="Location" />
-        <input id="mwhen" placeholder="Starts At (ISO)" />
-        <input id="mmins" type="number" placeholder="Reminder Minutes" value="60" />
+  <!-- APP (hidden until PIN verified) -->
+  <div id="app" style="display:none">
+    <header>
+      <img src="./logo.png" alt="Snoot Club" />
+      <h1>Admin</h1>
+      <div class="right">
+        <button class="btn sm" onclick="clearPin()">Clear PIN / Sign out</button>
       </div>
-      <div class="row" style="margin-top:8px;">
-        <button class="btn" onclick="createMeeting()">Save & Notify</button>
+    </header>
+
+    <div class="wrap">
+      <div class="card">
+        <h2>Pending</h2>
+        <div id="err-pending" class="error"></div>
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
+          <tbody id="tbody-pending"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Approved</h2>
+        <div id="err-approved" class="error"></div>
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Admin</th><th>Actions</th></tr></thead>
+          <tbody id="tbody-approved"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Rejected</h2>
+        <div id="err-rejected" class="error"></div>
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
+          <tbody id="tbody-rejected"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Create Meeting</h2>
+        <div id="err-meet" class="error"></div>
+        <div class="row">
+          <input id="mtitle" type="text" placeholder="Title" />
+          <input id="mloc" type="text" placeholder="Location" />
+          <input id="mwhen" type="text" placeholder="Starts At (ISO)" />
+          <input id="mmins" type="number" placeholder="Reminder Minutes" value="60" />
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn" onclick="createMeeting()">Save & Notify</button>
+        </div>
       </div>
     </div>
   </div>
 
 <script>
   const API = location.origin;
+  const gate = document.getElementById('gate');
+  const appEl = document.getElementById('app');
 
   function pin() { return localStorage.getItem('snoot_admin_pin') || ''; }
-  function savePin() {
-    localStorage.setItem('snoot_admin_pin', document.getElementById('pin').value.trim());
-    refresh();
+  function setPin(v){ localStorage.setItem('snoot_admin_pin', v); }
+  function clearPin(){
+    localStorage.removeItem('snoot_admin_pin');
+    // Reset UI back to gate
+    appEl.style.display = 'none';
+    gate.style.display = 'flex';
+    document.getElementById('pinInput').value = '';
+    // Clear tables/errors
+    ['tbody-pending','tbody-approved','tbody-rejected'].forEach(id => document.getElementById(id).innerHTML = '');
+    ['err-pending','err-approved','err-rejected','err-meet'].forEach(id => document.getElementById(id).textContent = '');
   }
-  document.getElementById('pin').value = pin();
+
+  async function verifyPin() {
+    const val = document.getElementById('pinInput').value.trim();
+    document.getElementById('gateErr').textContent = '';
+    try {
+      const r = await fetch(`${API}/auth/admin`, {
+        method:'POST',
+        headers:{ 'content-type':'application/json' },
+        body: JSON.stringify({ pin: val })
+      });
+      const j = await r.json().catch(()=> ({}));
+      if (j && j.ok) {
+        setPin(val);
+        gate.style.display = 'none';
+        appEl.style.display = 'block';
+        await refresh();
+      } else {
+        document.getElementById('gateErr').textContent = 'Invalid PIN';
+      }
+    } catch (e) {
+      document.getElementById('gateErr').textContent = 'Login failed';
+    }
+  }
 
   async function getJSON(url) {
     const r = await fetch(url, { headers: { 'x-admin-pin': pin() }});
@@ -132,9 +202,13 @@
   }
 
   async function refresh() {
+    // If no PIN saved, stay at gate
+    if (!pin()) {
+      clearPin();
+      return;
+    }
     // clear errors
     ['err-pending','err-approved','err-rejected','err-meet'].forEach(id=>document.getElementById(id).textContent='');
-
     try {
       const [pending, approved, rejected] = await Promise.all([
         getJSON(`${API}/members?status=pending`),
@@ -145,11 +219,9 @@
       renderRows('tbody-approved', approved, 'approved');
       renderRows('tbody-rejected', rejected, 'rejected');
     } catch (e) {
-      const msg = (e && e.message) || String(e);
-      // If PIN missing/bad, show error in each section
-      document.getElementById('err-pending').textContent = 'Error: ' + msg;
-      document.getElementById('err-approved').textContent = 'Error: ' + msg;
-      document.getElementById('err-rejected').textContent = 'Error: ' + msg;
+      // On any auth error, bounce back to gate
+      clearPin();
+      document.getElementById('gateErr').textContent = (e && e.message) || 'PIN required';
     }
   }
 
@@ -173,25 +245,17 @@
     }
   }
 
-  async function createMeeting() {
-    const title = document.getElementById('mtitle').value.trim();
-    const location = document.getElementById('mloc').value.trim();
-    const startsAt = document.getElementById('mwhen').value.trim();
-    const reminderMinutes = Number(document.getElementById('mmins').value || '60');
-    try {
-      await postJSON(`${API}/meetings`, { title, location, startsAt, reminderMinutes, sendSms:true, sendPush:true });
-      document.getElementById('mtitle').value = '';
-      document.getElementById('mloc').value = '';
-      document.getElementById('mwhen').value = '';
-      document.getElementById('mmins').value = '60';
-      alert('Meeting created.');
-    } catch (e) {
-      document.getElementById('err-meet').textContent = 'Error: ' + (e?.message || e);
+  // Auto-attempt with saved PIN on load
+  window.addEventListener('load', () => {
+    const saved = pin();
+    if (saved) {
+      document.getElementById('pinInput').value = saved;
+      verifyPin();
+    } else {
+      gate.style.display = 'flex';
+      appEl.style.display = 'none';
     }
-  }
-
-  // first load
-  refresh();
+  });
 </script>
 </body>
 </html>
