@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import path from 'node:path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
@@ -15,8 +17,13 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// ---------- DATA LOCATION (persistent disk if provided) ----------
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const DB_PATH = path.join(DATA_DIR, 'db.json');
+
 // ---------- DB ----------
-const db = new Low(new JSONFile(path.join(__dirname, 'db.json')), { members: [], meetings: [] });
+const db = new Low(new JSONFile(DB_PATH), { members: [], meetings: [] });
 await db.read();
 db.data ||= { members: [], meetings: [] };
 await db.write();
@@ -36,19 +43,61 @@ app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
 // ---------- HELPERS ----------
 const byStatus = (status) => db.data.members.filter(m => m.status === status);
+const nowMs = () => Date.now();
+
+// session + otp stores
+function makeToken() { return crypto.randomBytes(24).toString('hex'); }
+function makeCode()  { return String(Math.floor(100000 + Math.random() * 900000)); }
+
+const otpStore = new Map(); // phone -> { code, expMs }
+function setOtp(phone) {
+  const code = makeCode();
+  otpStore.set(phone, { code, expMs: nowMs() + 10 * 60 * 1000 }); // 10 min
+  return code;
+}
+function checkOtp(phone, code) {
+  const v = otpStore.get(phone);
+  if (!v) return false;
+  const ok = v.code === code && nowMs() < v.expMs;
+  if (ok) otpStore.delete(phone);
+  return ok;
+}
+
+async function memberByToken(token) {
+  await db.read();
+  const m = db.data.members.find(x => (x.sessionTokens || []).includes(token));
+  return m && m.status === 'approved' ? m : null;
+}
+
+async function requireAuth(req, res, next) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return res.status(401).json({ ok: false, error: 'auth required' });
+  const m = await memberByToken(token);
+  if (!m) return res.status(401).json({ ok: false, error: 'invalid session' });
+  req.member = m;
+  next();
+}
+
+function isAdminReq(req) {
+  const pin = (req.headers['x-admin-pin'] || req.query.pin || '').toString().trim();
+  return pin && pin === ADMIN_PIN;
+}
+function requireAdmin(req, res, next) {
+  if (!isAdminReq(req)) return res.status(401).json({ ok:false, error:'admin pin required' });
+  next();
+}
 
 // ---------- HEALTH ----------
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// ========== AUTH ==========
+// ========== AUTH FOR ADMIN (web page only) ==========
 app.post('/auth/admin', async (req, res) => {
-  const { phone, pin } = req.body || {};
-  const m = db.data.members.find(x => x.phone === phone && x.status === 'approved' && x.isAdmin === true);
-  const ok = Boolean(m && pin === ADMIN_PIN);
-  res.json({ ok });
+  // only checks PIN now; admin page is guarded by PIN and we also require the pin on admin actions
+  const { pin } = req.body || {};
+  res.json({ ok: pin === ADMIN_PIN });
 });
 
-// ========== MEMBERSHIP ==========
+// ========== MEMBER REGISTRATION & LOGIN ==========
 app.post('/register', async (req, res) => {
   const { phone, name, email, expoToken } = req.body || {};
   if (!phone) return res.status(400).json({ ok: false, error: 'phone required' });
@@ -63,70 +112,133 @@ app.post('/register', async (req, res) => {
       status: 'pending',
       isAdmin: false,
       expoTokens: [],
-      createdAt: Date.now(),
+      sessionTokens: [],
+      createdAt: nowMs(),
     };
     db.data.members.push(m);
   } else {
     if (name && !m.name) m.name = name;
     if (email && !m.email) m.email = email;
   }
+  if (expoToken && !m.expoTokens.includes(expoToken)) m.expoTokens.push(expoToken);
+  await db.write();
+  res.json({ ok:true, status:m.status, memberId:m.id });
+});
 
+// OTP: request code (approved members only)
+app.post('/auth/request-code', async (req, res) => {
+  const { phone } = req.body || {};
+  if (!phone) return res.status(400).json({ ok:false, error:'phone required' });
+
+  await db.read();
+  const m = db.data.members.find(x => x.phone === phone);
+  if (!m) return res.status(404).json({ ok:false, error:'not registered' });
+  if (m.status !== 'approved') return res.status(403).json({ ok:false, error:m.status });
+
+  const code = setOtp(phone);
+
+  if (twilioClient && TWILIO_FROM) {
+    try {
+      await twilioClient.messages.create({
+        to: phone,
+        from: TWILIO_FROM,
+        body: `Snoot Club login code: ${code} (valid 10 minutes).`,
+      });
+      return res.json({ ok:true, sent:true });
+    } catch (e) {
+      console.error('SMS error', e?.message || e);
+    }
+  }
+  // Fallback (for testing without Twilio): return code in response
+  res.json({ ok:true, sent:false, demoCode: code });
+});
+
+// OTP: verify -> create session
+app.post('/auth/verify-code', async (req, res) => {
+  const { phone, code, expoToken } = req.body || {};
+  if (!phone || !code) return res.status(400).json({ ok:false, error:'phone & code required' });
+
+  await db.read();
+  const m = db.data.members.find(x => x.phone === phone);
+  if (!m || m.status !== 'approved') return res.status(403).json({ ok:false });
+
+  if (!checkOtp(phone, code)) return res.status(401).json({ ok:false, error:'bad code' });
+
+  const token = makeToken();
+  m.sessionTokens = m.sessionTokens || [];
+  m.sessionTokens.push(token);
   if (expoToken && !m.expoTokens.includes(expoToken)) m.expoTokens.push(expoToken);
   await db.write();
 
-  res.json({ ok: true, status: m.status, memberId: m.id, isAdmin: m.isAdmin });
+  res.json({ ok:true, token, member: { id:m.id, name:m.name, email:m.email, phone:m.phone } });
 });
 
-app.get('/members', async (req, res) => {
+app.post('/auth/logout', requireAuth, async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  req.member.sessionTokens = (req.member.sessionTokens || []).filter(t => t !== token);
+  await db.write();
+  res.json({ ok:true });
+});
+
+app.get('/me', requireAuth, (req, res) => {
+  const m = req.member;
+  res.json({ id:m.id, name:m.name, email:m.email, phone:m.phone, status:m.status });
+});
+
+// ========== ADMIN: moderate members ==========
+app.get('/members', requireAdmin, async (req, res) => {
   const { status } = req.query;
+  await db.read();
   if (status) return res.json(byStatus(status));
   res.json(db.data.members);
 });
 
-app.post('/members/:id/approve', async (req, res) => {
+app.post('/members/:id/approve', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
-  if (!m) return res.status(404).json({ ok: false });
+  if (!m) return res.status(404).json({ ok:false });
   m.status = 'approved';
   await db.write();
-  res.json({ ok: true });
+  res.json({ ok:true });
 });
 
-app.post('/members/:id/reject', async (req, res) => {
+app.post('/members/:id/reject', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
-  if (!m) return res.status(404).json({ ok: false });
+  if (!m) return res.status(404).json({ ok:false });
   m.status = 'rejected';
   await db.write();
-  res.json({ ok: true });
+  res.json({ ok:true });
 });
 
-app.post('/members/:id/make-admin', async (req, res) => {
+app.post('/members/:id/make-admin', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
-  if (!m) return res.status(404).json({ ok: false });
+  if (!m) return res.status(404).json({ ok:false });
   m.isAdmin = true;
   await db.write();
-  res.json({ ok: true });
+  res.json({ ok:true });
 });
 
-app.post('/members/:id/remove-admin', async (req, res) => {
+app.post('/members/:id/remove-admin', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
-  if (!m) return res.status(404).json({ ok: false });
+  if (!m) return res.status(404).json({ ok:false });
   m.isAdmin = false;
   await db.write();
-  res.json({ ok: true });
+  res.json({ ok:true });
 });
 
-app.delete('/members/:id', async (req, res) => {
+app.delete('/members/:id', requireAdmin, async (req, res) => {
   db.data.members = db.data.members.filter(x => x.id !== req.params.id);
   await db.write();
-  res.json({ ok: true });
+  res.json({ ok:true });
 });
 
 // ========== MEETINGS ==========
-app.get('/meetings', async (_req, res) => {
+app.get('/meetings', requireAuth, async (_req, res) => {
+  await db.read();
   res.json(db.data.meetings.sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
 });
 
-app.post('/meetings', async (req, res) => {
+// Admin-only create (pin required)
+app.post('/meetings', requireAdmin, async (req, res) => {
   const m = req.body || {};
   const id = nanoid();
   const meeting = {
@@ -144,7 +256,7 @@ app.post('/meetings', async (req, res) => {
 
   const approved = byStatus('approved');
 
-  // SMS (on create)
+  // SMS on create
   if ((m.sendSms ?? true) && twilioClient && TWILIO_FROM) {
     const when = new Date(meeting.startsAt).toLocaleString();
     const body = `Snoot Club: ${meeting.title} at ${meeting.location || 'TBA'} on ${when}. Reply STOP to opt out.`;
@@ -154,7 +266,7 @@ app.post('/meetings', async (req, res) => {
     }
   }
 
-  // Push (on create)
+  // Push on create
   if (m.sendPush ?? true) {
     const tokens = approved.flatMap(mem => mem.expoTokens || []);
     const messages = [];
@@ -177,9 +289,9 @@ app.post('/tasks/notify-24h', async (req, res) => {
     }
 
     await db.read();
-    const now = Date.now();
-    const windowStart = now + (24 * 60 - 10) * 60 * 1000; // 24h - 10m
-    const windowEnd   = now + (24 * 60 + 10) * 60 * 1000; // 24h + 10m
+    const now = nowMs();
+    const windowStart = now + (24 * 60 - 10) * 60 * 1000;
+    const windowEnd   = now + (24 * 60 + 10) * 60 * 1000;
 
     const due = db.data.meetings.filter(meet => {
       if (meet.didNotify24h) return false;
@@ -191,7 +303,6 @@ app.post('/tasks/notify-24h', async (req, res) => {
     let smsCount = 0, pushCount = 0;
 
     for (const meeting of due) {
-      // SMS
       if (twilioClient && TWILIO_FROM) {
         const when = new Date(meeting.startsAt).toLocaleString();
         const body = `Snoot Club: ${meeting.title} at ${meeting.location || 'TBA'} on ${when}. Reply STOP to opt out.`;
@@ -200,8 +311,6 @@ app.post('/tasks/notify-24h', async (req, res) => {
           catch (e) { console.error('SMS error', e?.message || e); }
         }
       }
-
-      // Push
       const tokens = approved.flatMap(mem => mem.expoTokens || []);
       const messages = [];
       for (const t of tokens) {
@@ -224,4 +333,4 @@ app.post('/tasks/notify-24h', async (req, res) => {
 
 // ---------- START ----------
 const port = process.env.PORT || 3333;
-app.listen(port, () => console.log('Snoot Club server on ' + port));
+app.listen(port, () => console.log('Snoot Club server on ' + port + '  (DB at ' + DB_PATH + ')'));
