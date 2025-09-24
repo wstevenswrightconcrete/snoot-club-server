@@ -17,7 +17,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// ---------- DATA LOCATION (persistent disk if provided) ----------
+// ---------- DATA LOCATION (supports persistent disk) ----------
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_PATH = path.join(DATA_DIR, 'db.json');
@@ -45,14 +45,24 @@ app.use('/admin', express.static(path.join(__dirname, 'admin')));
 const byStatus = (status) => db.data.members.filter(m => m.status === status);
 const nowMs = () => Date.now();
 
-// session + otp stores
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 function makeCode()  { return String(Math.floor(100000 + Math.random() * 900000)); }
 
+// Normalize US numbers to E.164 (+1XXXXXXXXXX)
+function normalizeUS(phone) {
+  const raw = (phone || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  if (raw.startsWith('+')) return raw;
+  return digits ? `+${digits}` : '';
+}
+
+// In-memory OTP store (10 min)
 const otpStore = new Map(); // phone -> { code, expMs }
 function setOtp(phone) {
   const code = makeCode();
-  otpStore.set(phone, { code, expMs: nowMs() + 10 * 60 * 1000 }); // 10 min
+  otpStore.set(phone, { code, expMs: nowMs() + 10 * 60 * 1000 });
   return code;
 }
 function checkOtp(phone, code) {
@@ -61,14 +71,6 @@ function checkOtp(phone, code) {
   const ok = v.code === code && nowMs() < v.expMs;
   if (ok) otpStore.delete(phone);
   return ok;
-}
-
-function normalizeUS(phone) {
-  const digits = (phone || '').replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  if (phone.startsWith('+')) return phone;
-  return `+${digits}`;
 }
 
 async function memberByToken(token) {
@@ -98,18 +100,19 @@ function requireAdmin(req, res, next) {
 // ---------- HEALTH ----------
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// ========== AUTH FOR ADMIN (web page only) ==========
-app.post('/auth/admin', async (req, res) => {
-  // only checks PIN now; admin page is guarded by PIN and we also require the pin on admin actions
+// ---------- ADMIN AUTH (web page only) ----------
+app.post('/auth/admin', (req, res) => {
   const { pin } = req.body || {};
   res.json({ ok: pin === ADMIN_PIN });
 });
 
-// ========== MEMBER REGISTRATION & LOGIN ==========
+// ---------- MEMBER REGISTRATION & LOGIN ----------
 app.post('/register', async (req, res) => {
-  const { phone, name, email, expoToken } = req.body || {};
+  const { name, email, expoToken } = req.body || {};
+  const phone = normalizeUS(req.body?.phone);
   if (!phone) return res.status(400).json({ ok: false, error: 'phone required' });
 
+  await db.read();
   let m = db.data.members.find(x => x.phone === phone);
   if (!m) {
     m = {
@@ -127,15 +130,17 @@ app.post('/register', async (req, res) => {
   } else {
     if (name && !m.name) m.name = name;
     if (email && !m.email) m.email = email;
+    if (expoToken && !m.expoTokens.includes(expoToken)) m.expoTokens.push(expoToken);
   }
   if (expoToken && !m.expoTokens.includes(expoToken)) m.expoTokens.push(expoToken);
+
   await db.write();
   res.json({ ok:true, status:m.status, memberId:m.id });
 });
 
 // OTP: request code (approved members only)
 app.post('/auth/request-code', async (req, res) => {
-  const { phone } = req.body || {};
+  const phone = normalizeUS(req.body?.phone);
   if (!phone) return res.status(400).json({ ok:false, error:'phone required' });
 
   await db.read();
@@ -157,13 +162,14 @@ app.post('/auth/request-code', async (req, res) => {
       console.error('SMS error', e?.message || e);
     }
   }
-  // Fallback (for testing without Twilio): return code in response
+  // Fallback for testing without Twilio
   res.json({ ok:true, sent:false, demoCode: code });
 });
 
 // OTP: verify -> create session
 app.post('/auth/verify-code', async (req, res) => {
-  const { phone, code, expoToken } = req.body || {};
+  const phone = normalizeUS(req.body?.phone);
+  const { code, expoToken } = req.body || {};
   if (!phone || !code) return res.status(400).json({ ok:false, error:'phone & code required' });
 
   await db.read();
@@ -193,7 +199,7 @@ app.get('/me', requireAuth, (req, res) => {
   res.json({ id:m.id, name:m.name, email:m.email, phone:m.phone, status:m.status });
 });
 
-// ========== ADMIN: moderate members ==========
+// ---------- ADMIN: moderate members ----------
 app.get('/members', requireAdmin, async (req, res) => {
   const { status } = req.query;
   await db.read();
@@ -239,13 +245,13 @@ app.delete('/members/:id', requireAdmin, async (req, res) => {
   res.json({ ok:true });
 });
 
-// ========== MEETINGS ==========
+// ---------- MEETINGS ----------
 app.get('/meetings', requireAuth, async (_req, res) => {
   await db.read();
   res.json(db.data.meetings.sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
 });
 
-// Admin-only create (pin required)
+// Admin-only create (PIN required)
 app.post('/meetings', requireAdmin, async (req, res) => {
   const m = req.body || {};
   const id = nanoid();
@@ -280,16 +286,24 @@ app.post('/meetings', requireAdmin, async (req, res) => {
     const messages = [];
     for (const t of tokens) {
       if (!Expo.isExpoPushToken(t)) continue;
-      messages.push({ to: t, sound: 'default', title: 'Snoot Club Reminder', body: `${meeting.title} @ ${meeting.location || 'TBA'}` });
+      messages.push({
+        to: t,
+        sound: 'default',
+        title: 'Snoot Club Reminder',
+        body: `${meeting.title} @ ${meeting.location || 'TBA'}`
+      });
     }
     const chunks = expo.chunkPushNotifications(messages);
-    for (const chunk of chunks) { try { await expo.sendPushNotificationsAsync(chunk); } catch (e) { console.error(e); } }
+    for (const chunk of chunks) {
+      try { await expo.sendPushNotificationsAsync(chunk); }
+      catch (e) { console.error(e); }
+    }
   }
 
   res.json(meeting);
 });
 
-// ========== CRON: 24h reminders ==========
+// ---------- CRON: 24h reminders ----------
 app.post('/tasks/notify-24h', async (req, res) => {
   try {
     if ((req.query.secret || '') !== CRON_SECRET) {
@@ -298,8 +312,8 @@ app.post('/tasks/notify-24h', async (req, res) => {
 
     await db.read();
     const now = nowMs();
-    const windowStart = now + (24 * 60 - 10) * 60 * 1000;
-    const windowEnd   = now + (24 * 60 + 10) * 60 * 1000;
+    const windowStart = now + (24 * 60 - 10) * 60 * 1000; // 24h - 10m
+    const windowEnd   = now + (24 * 60 + 10) * 60 * 1000; // 24h + 10m
 
     const due = db.data.meetings.filter(meet => {
       if (meet.didNotify24h) return false;
@@ -311,6 +325,7 @@ app.post('/tasks/notify-24h', async (req, res) => {
     let smsCount = 0, pushCount = 0;
 
     for (const meeting of due) {
+      // SMS
       if (twilioClient && TWILIO_FROM) {
         const when = new Date(meeting.startsAt).toLocaleString();
         const body = `Snoot Club: ${meeting.title} at ${meeting.location || 'TBA'} on ${when}. Reply STOP to opt out.`;
@@ -319,16 +334,25 @@ app.post('/tasks/notify-24h', async (req, res) => {
           catch (e) { console.error('SMS error', e?.message || e); }
         }
       }
+      // Push
       const tokens = approved.flatMap(mem => mem.expoTokens || []);
       const messages = [];
       for (const t of tokens) {
         if (!Expo.isExpoPushToken(t)) continue;
-        messages.push({ to: t, sound: 'default', title: 'Snoot Club — 24h Reminder', body: `${meeting.title} @ ${meeting.location || 'TBA'}` });
+        messages.push({
+          to: t,
+          sound: 'default',
+          title: 'Snoot Club — 24h Reminder',
+          body: `${meeting.title} @ ${meeting.location || 'TBA'}`
+        });
       }
       const chunks = expo.chunkPushNotifications(messages);
-      for (const chunk of chunks) { try { await expo.sendPushNotificationsAsync(chunk); pushCount += chunk.length; } catch (e) { console.error(e); } }
+      for (const chunk of chunks) {
+        try { await expo.sendPushNotificationsAsync(chunk); pushCount += chunk.length; }
+        catch (e) { console.error(e); }
+      }
 
-      meeting.didNotify24h = true;
+      meeting.didNotify24h = true; // prevent duplicates
     }
 
     await db.write();
