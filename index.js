@@ -1,11 +1,10 @@
-// server/index.js
+// index.js (server)
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import http from 'http';
 import { fileURLToPath } from 'node:url';
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
@@ -14,59 +13,47 @@ import { nanoid } from 'nanoid';
 import twilio from 'twilio';
 import { Server as SocketIOServer } from 'socket.io';
 
+// ---------- Setup ----------
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// ---------- DATA LOCATION ----------
+// ---------- Data location (persist with DATA_DIR env or falls back to app dir) ----------
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 
 // ---------- DB ----------
-const db = new Low(new JSONFile(DB_PATH), { members: [], meetings: [], messages: [] });
+const db = new Low(new JSONFile(DB_PATH), { members: [], meetings: [], chat: [] });
 await db.read();
-db.data ||= { members: [], meetings: [], messages: [] };
-db.data.members ||= [];
-db.data.meetings ||= [];
-db.data.messages ||= [];
+db.data ||= { members: [], meetings: [], chat: [] };
 await db.write();
 
-// ---------- ENV ----------
+// ---------- Env ----------
 const ADMIN_PIN   = process.env.ADMIN_PIN || '123456';
 const CRON_SECRET = process.env.CRON_SECRET || 'changeme';
 const TWILIO_FROM = process.env.TWILIO_FROM || '';
-
 const expo = new Expo();
 const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-// ---------- STATIC / ADMIN ----------
+// ---------- Static admin ----------
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
-// ---------- HELPERS ----------
-const byStatus = (s) => db.data.members.filter(m => m.status === s);
+// ---------- Helpers ----------
 const nowMs = () => Date.now();
+const byStatus = (status) => db.data.members.filter(m => m.status === status);
 
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 function makeCode()  { return String(Math.floor(100000 + Math.random() * 900000)); }
 
-function normalizeUS(phone) {
-  const raw = (phone || '').trim();
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  if (raw.startsWith('+')) return raw;
-  return digits ? `+${digits}` : '';
-}
-
-// OTP store (10 min)
+// in-memory OTP store
 const otpStore = new Map(); // phone -> { code, expMs }
 function setOtp(phone) {
   const code = makeCode();
-  otpStore.set(phone, { code, expMs: nowMs() + 10 * 60 * 1000 });
+  otpStore.set(phone, { code, expMs: nowMs() + 10*60*1000 }); // 10 min
   return code;
 }
 function checkOtp(phone, code) {
@@ -85,9 +72,9 @@ async function memberByToken(token) {
 
 async function requireAuth(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!token) return res.status(401).json({ ok: false, error: 'auth required' });
+  if (!token) return res.status(401).json({ ok:false, error:'auth required' });
   const m = await memberByToken(token);
-  if (!m) return res.status(401).json({ ok: false, error: 'invalid session' });
+  if (!m) return res.status(401).json({ ok:false, error:'invalid session' });
   req.member = m;
   next();
 }
@@ -101,29 +88,26 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// ---------- HEALTH ----------
+// ---------- Health ----------
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// ---------- ADMIN AUTH (web page only) ----------
+// ---------- Auth: Admin PIN (web page) ----------
 app.post('/auth/admin', (req, res) => {
   const { pin } = req.body || {};
   res.json({ ok: pin === ADMIN_PIN });
 });
 
-// ---------- MEMBER REGISTRATION & LOGIN ----------
+// ---------- Auth: Member Registration & OTP Login ----------
 app.post('/register', async (req, res) => {
-  const { name, email, expoToken } = req.body || {};
-  const phone = normalizeUS(req.body?.phone);
-  if (!phone) return res.status(400).json({ ok: false, error: 'phone required' });
+  const { phone, name, email, expoToken } = req.body || {};
+  if (!phone) return res.status(400).json({ ok:false, error:'phone required' });
 
   await db.read();
   let m = db.data.members.find(x => x.phone === phone);
   if (!m) {
     m = {
       id: nanoid(),
-      phone,
-      name: name || '',
-      email: email || '',
+      phone, name: name || '', email: email || '',
       status: 'pending',
       isAdmin: false,
       expoTokens: [],
@@ -136,14 +120,12 @@ app.post('/register', async (req, res) => {
     if (email && !m.email) m.email = email;
   }
   if (expoToken && !m.expoTokens.includes(expoToken)) m.expoTokens.push(expoToken);
-
   await db.write();
   res.json({ ok:true, status:m.status, memberId:m.id });
 });
 
-// OTP: request code (approved members only)
 app.post('/auth/request-code', async (req, res) => {
-  const phone = normalizeUS(req.body?.phone);
+  const { phone } = req.body || {};
   if (!phone) return res.status(400).json({ ok:false, error:'phone required' });
 
   await db.read();
@@ -160,21 +142,17 @@ app.post('/auth/request-code', async (req, res) => {
         from: TWILIO_FROM,
         body: `Snoot Club login code: ${code} (valid 10 minutes).`,
       });
-      const resp = { ok:true, sent:true };
-      if (process.env.ALWAYS_RETURN_DEMOCODE === 'true') resp.demoCode = code;
-      return res.json(resp);
+      return res.json({ ok:true, sent:true });
     } catch (e) {
       console.error('SMS error', e?.message || e);
     }
   }
-  // Fallback for testing without Twilio
+  // fallback for testing
   res.json({ ok:true, sent:false, demoCode: code });
 });
 
-// OTP: verify -> create session
 app.post('/auth/verify-code', async (req, res) => {
-  const phone = normalizeUS(req.body?.phone);
-  const { code, expoToken } = req.body || {};
+  const { phone, code, expoToken } = req.body || {};
   if (!phone || !code) return res.status(400).json({ ok:false, error:'phone & code required' });
 
   await db.read();
@@ -204,14 +182,13 @@ app.get('/me', requireAuth, (req, res) => {
   res.json({ id:m.id, name:m.name, email:m.email, phone:m.phone, status:m.status });
 });
 
-// ---------- ADMIN: members ----------
+// ---------- Admin: Members ----------
 app.get('/members', requireAdmin, async (req, res) => {
   const { status } = req.query;
   await db.read();
   if (status) return res.json(byStatus(status));
   res.json(db.data.members);
 });
-
 app.post('/members/:id/approve', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
   if (!m) return res.status(404).json({ ok:false });
@@ -219,7 +196,6 @@ app.post('/members/:id/approve', requireAdmin, async (req, res) => {
   await db.write();
   res.json({ ok:true });
 });
-
 app.post('/members/:id/reject', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
   if (!m) return res.status(404).json({ ok:false });
@@ -227,7 +203,6 @@ app.post('/members/:id/reject', requireAdmin, async (req, res) => {
   await db.write();
   res.json({ ok:true });
 });
-
 app.post('/members/:id/make-admin', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
   if (!m) return res.status(404).json({ ok:false });
@@ -235,7 +210,6 @@ app.post('/members/:id/make-admin', requireAdmin, async (req, res) => {
   await db.write();
   res.json({ ok:true });
 });
-
 app.post('/members/:id/remove-admin', requireAdmin, async (req, res) => {
   const m = db.data.members.find(x => x.id === req.params.id);
   if (!m) return res.status(404).json({ ok:false });
@@ -243,25 +217,23 @@ app.post('/members/:id/remove-admin', requireAdmin, async (req, res) => {
   await db.write();
   res.json({ ok:true });
 });
-
 app.delete('/members/:id', requireAdmin, async (req, res) => {
   db.data.members = db.data.members.filter(x => x.id !== req.params.id);
   await db.write();
   res.json({ ok:true });
 });
 
-// ---------- MEETINGS (members only) ----------
+// ---------- Meetings (protected) ----------
 app.get('/meetings', requireAuth, async (_req, res) => {
   await db.read();
   res.json(db.data.meetings.sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
 });
 
-// Admin-only create meeting (PIN required)
+// Create meeting (admin only via PIN)
 app.post('/meetings', requireAdmin, async (req, res) => {
   const m = req.body || {};
-  const id = nanoid();
   const meeting = {
-    id,
+    id: nanoid(),
     title: m.title,
     description: m.description || '',
     location: m.location || '',
@@ -291,101 +263,25 @@ app.post('/meetings', requireAdmin, async (req, res) => {
     const messages = [];
     for (const t of tokens) {
       if (!Expo.isExpoPushToken(t)) continue;
-      messages.push({
-        to: t,
-        sound: 'default',
-        title: 'Snoot Club Reminder',
-        body: `${meeting.title} @ ${meeting.location || 'TBA'}`
-      });
+      messages.push({ to: t, sound: 'default', title: 'Snoot Club Reminder', body: `${meeting.title} @ ${meeting.location || 'TBA'}` });
     }
     const chunks = expo.chunkPushNotifications(messages);
-    for (const chunk of chunks) {
-      try { await expo.sendPushNotificationsAsync(chunk); }
-      catch (e) { console.error(e); }
-    }
+    for (const chunk of chunks) { try { await expo.sendPushNotificationsAsync(chunk); } catch (e) { console.error(e); } }
   }
 
   res.json(meeting);
 });
 
-// ---------- CHAT (members only) ----------
-
-// REST: fetch latest messages (paginate with ?before=ts&limit=50)
-app.get('/chat/messages', requireAuth, async (req, res) => {
-  await db.read();
-  const before = Number(req.query.before || Date.now() + 1);
-  const limit = Math.min(Number(req.query.limit || 50), 100);
-  const msgs = db.data.messages
-    .filter(m => m.ts < before)
-    .sort((a, b) => a.ts - b.ts)
-    .slice(-limit);
-  res.json(msgs);
-});
-
-// Socket.IO for realtime chat
-const httpServer = http.createServer(app);
-const io = new SocketIOServer(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] }
-});
-
-// authenticate socket with member token
-io.use(async (socket, next) => {
-  try {
-    const token = socket.handshake.auth?.token;
-    const member = await memberByToken(token);
-    if (!member) return next(new Error('unauthorized'));
-    socket.data.member = { id: member.id, name: member.name, phone: member.phone };
-    next();
-  } catch (e) {
-    next(e);
-  }
-});
-
-// simple rate-limit per member (1 msg/sec)
-const lastByMember = new Map();
-
-io.on('connection', async (socket) => {
-  const me = socket.data.member;
-
-  // send recent messages on connect
-  await db.read();
-  const recent = db.data.messages.slice(-50);
-  socket.emit('chat:init', recent);
-
-  socket.on('chat:send', async (payload) => {
-    const text = String(payload?.text || '').trim().slice(0, 1000);
-    if (!text) return;
-
-    const now = Date.now();
-    const last = lastByMember.get(me.id) || 0;
-    if (now - last < 1000) return; // too fast
-    lastByMember.set(me.id, now);
-
-    const msg = {
-      id: nanoid(),
-      memberId: me.id,
-      name: me.name || me.phone,
-      text,
-      ts: now
-    };
-    db.data.messages.push(msg);
-    await db.write();
-
-    io.emit('chat:new', msg);
-  });
-});
-
-// ---------- CRON: 24h reminders ----------
+// ---------- Cron: 24h reminders ----------
 app.post('/tasks/notify-24h', async (req, res) => {
   try {
     if ((req.query.secret || '') !== CRON_SECRET) {
-      return res.status(401).json({ ok: false, error: 'unauthorized' });
+      return res.status(401).json({ ok:false, error:'unauthorized' });
     }
-
     await db.read();
     const now = nowMs();
-    const windowStart = now + (24 * 60 - 10) * 60 * 1000; // 24h - 10m
-    const windowEnd   = now + (24 * 60 + 10) * 60 * 1000; // 24h + 10m
+    const windowStart = now + (24*60 - 10)*60*1000;
+    const windowEnd   = now + (24*60 + 10)*60*1000;
 
     const due = db.data.meetings.filter(meet => {
       if (meet.didNotify24h) return false;
@@ -397,7 +293,6 @@ app.post('/tasks/notify-24h', async (req, res) => {
     let smsCount = 0, pushCount = 0;
 
     for (const meeting of due) {
-      // SMS
       if (twilioClient && TWILIO_FROM) {
         const when = new Date(meeting.startsAt).toLocaleString();
         const body = `Snoot Club: ${meeting.title} at ${meeting.location || 'TBA'} on ${when}. Reply STOP to opt out.`;
@@ -406,37 +301,75 @@ app.post('/tasks/notify-24h', async (req, res) => {
           catch (e) { console.error('SMS error', e?.message || e); }
         }
       }
-      // Push
       const tokens = approved.flatMap(mem => mem.expoTokens || []);
       const messages = [];
       for (const t of tokens) {
         if (!Expo.isExpoPushToken(t)) continue;
-        messages.push({
-          to: t,
-          sound: 'default',
-          title: 'Snoot Club — 24h Reminder',
-          body: `${meeting.title} @ ${meeting.location || 'TBA'}`
-        });
+        messages.push({ to: t, sound: 'default', title: 'Snoot Club — 24h Reminder', body: `${meeting.title} @ ${meeting.location || 'TBA'}` });
       }
       const chunks = expo.chunkPushNotifications(messages);
-      for (const chunk of chunks) {
-        try { await expo.sendPushNotificationsAsync(chunk); pushCount += chunk.length; }
-        catch (e) { console.error(e); }
-      }
+      for (const chunk of chunks) { try { await expo.sendPushNotificationsAsync(chunk); pushCount += chunk.length; } catch (e) { console.error(e); } }
 
       meeting.didNotify24h = true;
     }
 
     await db.write();
-    res.json({ ok: true, meetingsNotified: due.map(d => d.id), smsCount, pushCount });
+    res.json({ ok:true, meetingsNotified: due.map(d => d.id), smsCount, pushCount });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+    res.status(500).json({ ok:false, error:String(e?.message || e) });
   }
 });
 
-// ---------- START ----------
+// ---------- Start HTTP server, attach Socket.IO ----------
 const port = process.env.PORT || 3333;
-httpServer.listen(port, () => {
+const server = app.listen(port, () => {
   console.log('Snoot Club server on ' + port + '  (DB at ' + DB_PATH + ')');
+});
+
+const io = new SocketIOServer(server, {
+  cors: { origin: '*'}  // okay for dev; lock down in production if needed
+});
+
+// Socket auth with Bearer token
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token || '';
+    const m = await memberByToken(token);
+    if (!m) return next(new Error('unauthorized'));
+    socket.data.member = { id: m.id, name: m.name || '', phone: m.phone };
+    next();
+  } catch (e) { next(e); }
+});
+
+// Chat events
+io.on('connection', async (socket) => {
+  const me = socket.data.member;
+  try {
+    await db.read();
+    const recent = (db.data.chat || []).slice(-100);
+    socket.emit('chat:init', recent);
+  } catch {}
+
+  socket.on('chat:send', async (payload) => {
+    const text = (payload?.text || '').toString().trim();
+    if (!text) return;
+    const msg = {
+      id: nanoid(),
+      memberId: me.id,
+      name: me.name || me.phone || 'Member',
+      text,
+      ts: Date.now()
+    };
+    db.data.chat = db.data.chat || [];
+    db.data.chat.push(msg);
+    await db.write();
+    io.emit('chat:new', msg);
+  });
+});
+
+// REST for chat history (protected)
+app.get('/chat/messages', requireAuth, async (_req, res) => {
+  await db.read();
+  res.json((db.data.chat || []).slice(-100));
 });
