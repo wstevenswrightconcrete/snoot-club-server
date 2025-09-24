@@ -63,6 +63,14 @@ function checkOtp(phone, code) {
   return ok;
 }
 
+function normalizeUS(phone) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  if (phone.startsWith('+')) return phone;
+  return `+${digits}`;
+}
+
 async function memberByToken(token) {
   await db.read();
   const m = db.data.members.find(x => (x.sessionTokens || []).includes(token));
