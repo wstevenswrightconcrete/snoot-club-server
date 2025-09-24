@@ -1,173 +1,197 @@
 <!doctype html>
 <html lang="en">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Snoot Club — Admin</title>
-<style>
-  :root { --navy:#0B1B32; --silver:#C0C0C0; }
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--navy);color:var(--silver);margin:0}
-  .wrap{max-width:1000px;margin:32px auto;padding:0 16px;text-align:center}
-  .card{background:#132A4B;border-radius:16px;padding:18px;margin:16px auto;box-shadow:0 8px 24px rgba(0,0,0,.25);text-align:left}
-  input,textarea,button{font:inherit}
-  input,textarea,select{width:100%;padding:10px;border-radius:10px;border:1px solid #244;background:#0B1B32;color:var(--silver)}
-  label{display:block;margin:10px 0 6px}
-  button{background:var(--silver);color:var(--navy);border:0;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
-  table{width:100%;border-collapse:collapse}
-  td,th{border-bottom:1px solid #244;padding:8px;text-align:left}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .muted{opacity:.8}
-  .flex{display:flex;gap:8px;flex-wrap:wrap}
-  .ok{color:#9ef59e}.err{color:#ff9b9b}
-  .logo{display:block;width:140px;max-width:40vw;height:auto;margin:0 auto 8px;filter: drop-shadow(0 6px 18px rgba(0,0,0,.35));}
-  .brand-title{margin:6px 0 16px;font-weight:800;letter-spacing:.4px}
-</style>
+<head>
+  <meta charset="UTF-8" />
+  <title>Snoot Club — Admin</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --navy:#0D1B2A; --silver:#E0E6ED; --card:#132A4B; --accent:#5DA3FA; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+           background:var(--navy); color:var(--silver); }
+    header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #1b3357; }
+    header img { height:56px; }
+    header h1 { font-size:20px; margin:0; font-weight:700; }
+    .pin { margin-left:auto; display:flex; align-items:center; gap:8px; }
+    .wrap { padding:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+    .card { background:var(--card); border-radius:16px; padding:14px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
+    h2 { margin:6px 0 12px 0; font-size:16px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:8px; border-bottom:1px solid #1b3357; }
+    .btn { background:var(--accent); color:#051225; border:none; padding:6px 10px; border-radius:10px; cursor:pointer; }
+    .btn.sm { padding:4px 8px; font-size:12px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; }
+    .error { color:#ffb4b4; margin:8px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="./logo.png" alt="Snoot Club" />
+    <h1>Admin</h1>
+    <div class="pin">
+      <label for="pin">PIN</label>
+      <input id="pin" type="password" placeholder="Admin PIN" style="padding:6px 8px;border-radius:8px;border:1px solid #1b3357;background:#0c1730;color:#fff;" />
+      <button class="btn" onclick="savePin()">Set</button>
+    </div>
+  </header>
 
-<div class="wrap">
-  <img class="logo" src="/admin/logo.png" alt="Snoot Club logo" />
-  <h1 class="brand-title">Snoot Club — Admin</h1>
-  <p class="muted">Approve new members, promote to admin, and send meeting reminders to approved members only.</p>
+  <div class="wrap">
+    <div class="card">
+      <h2>Pending</h2>
+      <div id="err-pending" class="error"></div>
+      <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
+        <tbody id="tbody-pending"></tbody>
+      </table>
+    </div>
 
-  <div class="card">
-    <label>Render Base URL</label>
-    <input id="base" placeholder="https://snoot-club-server.onrender.com" />
-    <label>Admin PIN</label>
-    <input id="pin" placeholder="*****" />
-    <div class="flex" style="margin-top:10px">
-      <button id="btnAuth">Unlock Admin</button>
-      <span id="authState" class="muted">Locked</span>
+    <div class="card">
+      <h2>Approved</h2>
+      <div id="err-approved" class="error"></div>
+      <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Admin</th><th>Actions</th></tr></thead>
+        <tbody id="tbody-approved"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Rejected</h2>
+      <div id="err-rejected" class="error"></div>
+      <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
+        <tbody id="tbody-rejected"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Create Meeting</h2>
+      <div id="err-meet" class="error"></div>
+      <div class="row">
+        <input id="mtitle" placeholder="Title" />
+        <input id="mloc" placeholder="Location" />
+        <input id="mwhen" placeholder="Starts At (ISO)" />
+        <input id="mmins" type="number" placeholder="Reminder Minutes" value="60" />
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn" onclick="createMeeting()">Save & Notify</button>
+      </div>
     </div>
   </div>
-
-  <div class="card" id="pendingCard" style="display:none">
-    <h2 style="margin-top:0">Pending Requests</h2>
-    <table id="pending"><thead>
-      <tr><th>Name</th><th>Email</th><th>Phone</th><th>Requested</th><th>Actions</th></tr>
-    </thead><tbody></tbody></table>
-  </div>
-
-  <div class="card" id="approvedCard" style="display:none">
-    <h2 style="margin-top:0">Approved Members</h2>
-    <table id="approved"><thead>
-      <tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Actions</th></tr>
-    </thead><tbody></tbody></table>
-  </div>
-
-  <div class="card" id="meetingCard" style="display:none">
-    <h2 style="margin-top:0">New Meeting</h2>
-    <label>Title</label><input id="title" />
-    <label>Description (optional)</label><textarea id="desc" rows="3"></textarea>
-    <div class="row">
-      <div><label>Location</label><input id="loc" value="Lodge" /></div>
-      <div><label>Starts At (local)</label><input id="dt" type="datetime-local" /></div>
-    </div>
-    <label>Reminder Minutes</label><input id="rem" type="number" value="60" />
-    <div class="flex" style="margin-top:10px">
-      <button id="btnCreate">Create & Notify</button>
-      <button id="btnRefresh">Refresh</button>
-      <span id="createState" class="muted"></span>
-    </div>
-  </div>
-
-  <div id="out" class="muted"></div>
-</div>
 
 <script>
-const $ = (id) => document.getElementById(id);
-const show = (el, v=true)=>el.style.display = v ? '' : 'none';
-const out = (msg, cls='') => { const el=$('out'); el.textContent = typeof msg==='string'?msg:JSON.stringify(msg,null,2); el.className=cls; };
-let authed = false;
+  const API = location.origin;
 
-function base(){
-  const v = $('base').value.trim();
-  return v ? v.replace(/\/+$/,'') : (location.origin);
-}
-async function api(path, method='GET', body){
-  const url = base() + path;
-  const opts = { method, headers:{ 'content-type':'application/json', 'x-admin-pin': $('pin').value.trim() } };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  const text = await res.text();
-  try { return JSON.parse(text); } catch { return text; }
-}
+  function pin() { return localStorage.getItem('snoot_admin_pin') || ''; }
+  function savePin() {
+    localStorage.setItem('snoot_admin_pin', document.getElementById('pin').value.trim());
+    refresh();
+  }
+  document.getElementById('pin').value = pin();
 
-$('btnAuth').onclick = async ()=>{
-  try{
-    const res = await api('/auth/admin','POST',{ phone: 'DUMMY', pin: $('pin').value.trim() });
-    if ((res && res.ok) || $('pin').value.trim()) {
-      authed=true;
-      out('Admin unlocked','ok');
-      show($('pendingCard'),1);
-      show($('approvedCard'),1);
-      show($('meetingCard'),1);
-      loadLists();
-    } else out('Wrong PIN','err');
-  }catch(e){ out('Error: '+e.message,'err'); }
-};
-
-$('btnRefresh').onclick = ()=>loadLists();
-
-async function loadLists(){
-  try{
-    // pending
-    const pending = await api('/members?status=pending');
-    const pbody = $('pending').querySelector('tbody'); pbody.innerHTML='';
-    (pending||[]).sort((a,b)=> (a.createdAt||0)-(b.createdAt||0)).forEach(m=>{
-      const tr = document.createElement('tr');
-      const when = m.createdAt ? new Date(m.createdAt).toLocaleString() : '';
-      tr.innerHTML = `<td>${m.name||''}</td><td>${m.email||''}</td><td>${m.phone}</td><td>${when}</td>
-        <td class="flex">
-          <button data-a="${m.id}">Approve</button>
-          <button data-r="${m.id}">Reject</button>
-        </td>`;
-      tr.querySelector('[data-a]').onclick = async ()=>{ await api('/members/'+m.id+'/approve','POST',{}); loadLists(); };
-      tr.querySelector('[data-r]').onclick = async ()=>{ await api('/members/'+m.id+'/reject','POST',{}); loadLists(); };
-      pbody.appendChild(tr);
+  async function getJSON(url) {
+    const r = await fetch(url, { headers: { 'x-admin-pin': pin() }});
+    const data = await r.json().catch(()=> ({}));
+    if (!r.ok) throw new Error(data?.error || r.statusText || 'Request failed');
+    return data;
+  }
+  async function postJSON(url, body) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-admin-pin': pin() },
+      body: JSON.stringify(body || {})
     });
+    const data = await r.json().catch(()=> ({}));
+    if (!r.ok) throw new Error(data?.error || r.statusText || 'Request failed');
+    return data;
+  }
 
-    // approved
-    const approved = await api('/members?status=approved');
-    const abody = $('approved').querySelector('tbody'); abody.innerHTML='';
-    (approved||[]).forEach(m=>{
+  function renderRows(tbodyId, arr, kind) {
+    const tb = document.getElementById(tbodyId);
+    tb.innerHTML = '';
+    (Array.isArray(arr) ? arr : []).forEach(m => {
       const tr = document.createElement('tr');
-      const role = m.isAdmin ? 'Admin' : 'Member';
-      tr.innerHTML = `<td>${m.name||''}</td><td>${m.email||''}</td><td>${m.phone}</td><td>${role}</td>
-        <td class="flex">
-          ${m.isAdmin
-            ? `<button data-rm="${m.id}">Remove Admin</button>`
-            : `<button data-mk="${m.id}">Make Admin</button>`}
-          <button data-del="${m.id}">Remove</button>
-        </td>`;
-      if (m.isAdmin) tr.querySelector('[data-rm]').onclick = async ()=>{ await api('/members/'+m.id+'/remove-admin','POST',{}); loadLists(); };
-      else tr.querySelector('[data-mk]').onclick = async ()=>{ await api('/members/'+m.id+'/make-admin','POST',{}); loadLists(); };
-      tr.querySelector('[data-del]').onclick = async ()=>{ await api('/members/'+m.id,'DELETE'); loadLists(); };
-      abody.appendChild(tr);
+      tr.innerHTML = `
+        <td>${m.name||''}</td>
+        <td>${m.phone||''}</td>
+        <td>${m.email||''}</td>
+        ${kind==='approved' ? `<td>${m.isAdmin ? 'Yes' : 'No'}</td>` : ''}
+        <td class="row">
+          ${kind==='pending' ? `
+            <button class="btn sm" onclick="act('${m.id}','approve')">Approve</button>
+            <button class="btn sm" onclick="act('${m.id}','reject')">Reject</button>
+          ` : ''}
+          ${kind!=='pending' ? `<button class="btn sm" onclick="act('${m.id}','delete')">Delete</button>` : ''}
+          ${kind==='approved' ? `
+            ${m.isAdmin
+              ? `<button class="btn sm" onclick="act('${m.id}','remove-admin')">Remove Admin</button>`
+              : `<button class="btn sm" onclick="act('${m.id}','make-admin')">Make Admin</button>`}
+          ` : ''}
+        </td>
+      `;
+      tb.appendChild(tr);
     });
-  }catch(e){ out('Load error: '+e.message,'err'); }
-}
+  }
 
-$('btnCreate').onclick = async ()=>{
-  if(!authed) return out('Unlock admin first','err');
-  try{
-    $('createState').textContent='Sending...';
-    const local = $('dt').value;
-    const iso = local ? new Date(local).toISOString() : new Date().toISOString();
-    const payload = {
-      title: $('title').value.trim(),
-      description: $('desc').value.trim(),
-      location: $('loc').value.trim(),
-      startsAt: iso,
-      reminderMinutes: parseInt($('rem').value || '60', 10),
-      sendSms: true,
-      sendPush: true
+  async function refresh() {
+    // clear errors
+    ['err-pending','err-approved','err-rejected','err-meet'].forEach(id=>document.getElementById(id).textContent='');
+
+    try {
+      const [pending, approved, rejected] = await Promise.all([
+        getJSON(`${API}/members?status=pending`),
+        getJSON(`${API}/members?status=approved`),
+        getJSON(`${API}/members?status=rejected`)
+      ]);
+      renderRows('tbody-pending', pending, 'pending');
+      renderRows('tbody-approved', approved, 'approved');
+      renderRows('tbody-rejected', rejected, 'rejected');
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      // If PIN missing/bad, show error in each section
+      document.getElementById('err-pending').textContent = 'Error: ' + msg;
+      document.getElementById('err-approved').textContent = 'Error: ' + msg;
+      document.getElementById('err-rejected').textContent = 'Error: ' + msg;
+    }
+  }
+
+  async function act(id, action) {
+    const map = {
+      'approve': `${API}/members/${id}/approve`,
+      'reject': `${API}/members/${id}/reject`,
+      'delete': `${API}/members/${id}`,
+      'make-admin': `${API}/members/${id}/make-admin`,
+      'remove-admin': `${API}/members/${id}/remove-admin`,
     };
-    const res = await api('/meetings','POST', payload);
-    $('createState').textContent='Sent';
-    out(res,'ok');
-  }catch(e){ $('createState').textContent='Error'; out('Error: '+e.message,'err'); }
-};
+    try {
+      const url = map[action];
+      const opts = { method: action === 'delete' ? 'DELETE' : 'POST',
+        headers: { 'x-admin-pin': pin() } };
+      const r = await fetch(url, opts);
+      if (!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || r.statusText);
+      await refresh();
+    } catch (e) {
+      alert('Action failed: ' + (e?.message || e));
+    }
+  }
 
-// set default base to current host
-document.addEventListener('DOMContentLoaded', () => {
-  $('base').value = location.origin;
-});
+  async function createMeeting() {
+    const title = document.getElementById('mtitle').value.trim();
+    const location = document.getElementById('mloc').value.trim();
+    const startsAt = document.getElementById('mwhen').value.trim();
+    const reminderMinutes = Number(document.getElementById('mmins').value || '60');
+    try {
+      await postJSON(`${API}/meetings`, { title, location, startsAt, reminderMinutes, sendSms:true, sendPush:true });
+      document.getElementById('mtitle').value = '';
+      document.getElementById('mloc').value = '';
+      document.getElementById('mwhen').value = '';
+      document.getElementById('mmins').value = '60';
+      alert('Meeting created.');
+    } catch (e) {
+      document.getElementById('err-meet').textContent = 'Error: ' + (e?.message || e);
+    }
+  }
+
+  // first load
+  refresh();
 </script>
+</body>
+</html>
