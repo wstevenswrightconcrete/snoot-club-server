@@ -15,7 +15,7 @@
     "expo-server-sdk": "^4.0.0",
     "nanoid": "^5.0.7",
     "twilio": "^5.2.2",
-    "socket.io": "^4.7.5"   // <-- add this
+    "socket.io": "^4.7.5"   
   }
 }
 
