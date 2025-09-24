@@ -83,7 +83,7 @@ function base(){
 }
 async function api(path, method='GET', body){
   const url = base() + path;
-  const opts = { method, headers:{ 'content-type':'application/json' } };
+  const opts = { method, headers:{ 'content-type':'application/json', 'x-admin-pin': $('pin').value.trim() } };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   const text = await res.text();
