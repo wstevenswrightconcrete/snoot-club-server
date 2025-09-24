@@ -12,11 +12,11 @@
     header img { height:56px; }
     header h1 { font-size:20px; margin:0; font-weight:700; }
     .pin { margin-left:auto; display:flex; align-items:center; gap:8px; }
-    .wrap { padding:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+    .wrap {padding: 16px;display: grid;grid-template-columns: 1fr;   /* <-- one full-width column */ gap: 16px;max-width: 1100px;            /* center content on big screens */ margin: 0 auto;}
     .card { background:var(--card); border-radius:16px; padding:14px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
     h2 { margin:6px 0 12px 0; font-size:16px; }
     table { width:100%; border-collapse:collapse; }
-    th, td { text-align:left; padding:8px; border-bottom:1px solid #1b3357; }
+    th, td {text-align: left;padding: 8px;border-bottom: 1px solid #1b3357;white-space: normal;word-break: break-word;}
     .btn { background:var(--accent); color:#051225; border:none; padding:6px 10px; border-radius:10px; cursor:pointer; }
     .btn.sm { padding:4px 8px; font-size:12px; }
     .row { display:flex; gap:8px; flex-wrap:wrap; }
