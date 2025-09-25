@@ -273,3 +273,5 @@ module.exports = function createAuthChat({ store, adminPin, jwtSecret }) {
 
   return r;
 };
+export default createAuthChat;
+
