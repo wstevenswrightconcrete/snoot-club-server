@@ -14,7 +14,7 @@
     "lowdb": "^7.0.1",
     "nanoid": "^5.0.7",
     "socket.io": "^4.7.5",
-    "twilio": "^5.2.2"
+    "twilio": "^5.2.2",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2"
   },
