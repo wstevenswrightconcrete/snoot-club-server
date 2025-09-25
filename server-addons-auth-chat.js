@@ -1,278 +1,245 @@
 // server-addons-auth-chat.js
-// Add email+password member auth (keeps your admin PIN), plus a simple "All Members" group chat.
-// ───────────────────────────────────────────────────────────────────────────────
-// Install deps (once):  npm i bcryptjs jsonwebtoken
-// Mount in your server:
-//   const createAuthChat = require('./server-addons-auth-chat');
-//   const store = { members: [], meetings: [], messages: [] }; // replace with your DB
-//   app.use(createAuthChat({ store, adminPin: process.env.ADMIN_PIN, jwtSecret: process.env.JWT_SECRET || 'change-me' }));
+// Add-on router that provides email/password auth (JWT) and REST chat endpoints,
+// wired to your existing LowDB store via the adapter you pass in.
 //
-// Endpoints provided:
+// Usage in index.js:
+//   import createAuthChat from './server-addons-auth-chat.js'
+//   app.use('/addons', createAuthChat({ store, adminPin: ADMIN_PIN, jwtSecret: process.env.JWT_SECRET, io }))
 //
-//  Auth (members):
-//   - POST /auth/signup-email        {email, password, name?, phone?} → {ok, status:'pending', memberId}
-//   - POST /auth/login-email         {email, password} → {ok, token, member}
-//   - POST /auth/change-password     (Bearer) {current, newPassword} → {ok}
-//
-//  Admin (PIN header):
-//   - POST /admin/create-member      (x-admin-pin) {name?, email, phone?, tempPassword, isAdmin?} → {ok, memberId}
-//   - POST /admin/set-password       (x-admin-pin) {memberId, password} → {ok}
-//
-//  Member info / meetings (member Bearer):
-//   - GET  /me                       (Bearer) → {ok, member}
-//   - GET  /meetings                 (Bearer) → {ok, meetings}   // uses store.meetings if you don’t already have this
-//
-//  Chat (admin via x-admin-pin OR member via Bearer):
-//   - GET  /chat/rooms               → [{id:'all', name:'All Members'}]
-//   - GET  /chat/messages?roomId=all&cursor=ISO8601 → {messages:[...], cursor}
-//   - POST /chat/send                {roomId:'all', text} → {ok, id}
-//
-// Replace the in-memory "store" with your real DB when ready (keep the same shapes).
+// Requires deps: bcryptjs, jsonwebtoken, express, nanoid
 
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { nanoid } from 'nanoid';
 
-module.exports = function createAuthChat({ store, adminPin, jwtSecret }) {
-  if (!store) throw new Error('createAuthChat: "store" is required');
-  if (!adminPin) console.warn('[auth-chat] Warning: adminPin not provided');
-  if (!jwtSecret) console.warn('[auth-chat] Warning: jwtSecret not provided');
+/**
+ * @typedef {Object} StoreAdapter
+ * @property {() => Promise<void>} read
+ * @property {() => Promise<void>} write
+ * @property {() => any[]} getMembers
+ * @property {(arr:any[]) => void} setMembers
+ * @property {() => any[]} getMessages
+ * @property {(arr:any[]) => void} setMessages
+ */
 
-  const r = express.Router();
-  r.use(express.json());
+/**
+ * @param {Object} opts
+ * @param {StoreAdapter} opts.store
+ * @param {string} opts.adminPin
+ * @param {string} opts.jwtSecret
+ * @param {import('socket.io').Server} [opts.io]
+ * @returns {import('express').Router}
+ */
+export function createAuthChat({ store, adminPin, jwtSecret = 'dev', io } = {}) {
+  const router = express.Router();
 
-  // ───────────────────────── Helpers
-  const sign = (m) =>
-    jwt.sign(
-      { sub: m.id, email: m.email, role: m.isAdmin ? 'admin' : 'member' },
-      jwtSecret,
-      { expiresIn: '12h' }
-    );
+  // ------------- helpers -------------
+  const now = () => Date.now();
 
-  function bearer(req) {
-    const h = req.headers.authorization || '';
-    return h.startsWith('Bearer ') ? h.slice(7) : null;
+  const isAdminReq = (req) => {
+    const pin = (req.headers['x-admin-pin'] || req.query.pin || '').toString().trim();
+    return !!pin && pin === adminPin;
+  };
+
+  const normalizeEmail = (email) => (email || '').trim().toLowerCase();
+
+  async function findMemberByEmail(emailLower) {
+    await store.read();
+    const members = store.getMembers();
+    return members.find(m => (m.email || '').toLowerCase() === emailLower) || null;
   }
 
-  function requireAuth(req, res, next) {
-    const tok = bearer(req);
-    if (!tok) return res.status(401).json({ ok: false, error: 'auth required' });
+  function signJwt(member) {
+    // 30d token; index.js already knows how to accept JWTs for chat/socket
+    return jwt.sign(
+      { sub: member.id, email: member.email || '', name: member.name || '' },
+      jwtSecret,
+      { expiresIn: '30d' }
+    );
+  }
+
+  function requireJwt(req, res, next) {
     try {
-      req.user = jwt.verify(tok, jwtSecret);
+      const hdr = req.headers.authorization || '';
+      const token = hdr.replace(/^Bearer\s+/i, '');
+      if (!token) return res.status(401).json({ ok: false, error: 'auth required' });
+      req.jwt = jwt.verify(token, jwtSecret);
       next();
     } catch {
       return res.status(401).json({ ok: false, error: 'invalid token' });
     }
   }
 
-  function requireApproved(req, res, next) {
-    const m = (store.members || []).find((x) => x.id === req.user.sub);
-    if (!m) return res.status(401).json({ ok: false, error: 'auth required' });
-    if (m.status !== 'approved') return res.status(403).json({ ok: false, error: 'pending' });
-    req.member = m;
-    next();
-  }
+  // ------------- AUTH (email/password + JWT) -------------
 
-  function requireAdmin(req, res, next) {
-    const pin = req.headers['x-admin-pin'];
-    if (!pin || pin !== adminPin) return res.status(401).json({ ok: false, error: 'admin auth required' });
-    next();
-  }
-
-  // Allow either admin (via PIN) or member (via Bearer) to use chat endpoints.
-  function requireAdminOrMember(req, res, next) {
-    const pin = req.headers['x-admin-pin'];
-    if (pin && pin === adminPin) {
-      req.from = 'admin';
-      return next();
-    }
-    return requireAuth(req, res, () => requireApproved(req, res, () => {
-      req.from = 'member';
-      next();
-    }));
-  }
-
-  // Normalize email to lowercase for uniqueness checks
-  function normEmail(e) {
-    return String(e || '').trim().toLowerCase();
-  }
-
-  // ───────────────────────── Email + Password auth
-
-  // Self-signup (pending until approved in your existing admin flow)
-  r.post('/auth/signup-email', async (req, res) => {
+  // Self-register (PENDING by default).
+  // If called with correct X-Admin-Pin, you can create/approve and/or set password for someone.
+  router.post('/auth/register-email', async (req, res) => {
     try {
-      const { email, password, name, phone } = req.body || {};
-      if (!email || !password) return res.status(400).json({ ok: false, error: 'email & password required' });
-      const lower = normEmail(email);
-      store.members = store.members || [];
-      if (store.members.find((m) => normEmail(m.email) === lower)) {
-        return res.status(409).json({ ok: false, error: 'email exists' });
+      const { name = '', email, password, approve = false } = req.body || {};
+      const emailLower = normalizeEmail(email);
+      if (!emailLower) return res.status(400).json({ ok: false, error: 'email required' });
+      if (!password || String(password).length < 6) {
+        return res.status(400).json({ ok: false, error: 'password must be ≥ 6 chars' });
       }
-      const id = 'm_' + Date.now().toString(36);
-      const passwordHash = await bcrypt.hash(String(password), 10);
-      store.members.push({
-        id,
-        email: lower,
-        phone: phone || null,
-        name: name || '',
-        status: 'pending',
-        isAdmin: false,
-        passwordHash,
-        mustChangePassword: false,
-        createdAt: new Date().toISOString(),
+
+      const adminMode = isAdminReq(req);
+
+      await store.read();
+      const members = store.getMembers();
+      let m = members.find(x => (x.email || '').toLowerCase() === emailLower);
+
+      const pwHash = await bcrypt.hash(String(password), 10);
+
+      if (!m) {
+        m = {
+          id: nanoid(),
+          name: name || '',
+          email: emailLower,
+          phone: '',
+          status: adminMode && approve ? 'approved' : 'pending',
+          isAdmin: false,
+          createdAt: now(),
+          expoTokens: [],
+          sessionTokens: [],
+          passwordHash: pwHash,
+        };
+        members.push(m);
+      } else {
+        // Update existing member's password. If not admin, only allow if they had no password yet.
+        if (m.passwordHash && !adminMode) {
+          return res.status(409).json({ ok: false, error: 'account already exists' });
+        }
+        m.name = m.name || name || '';
+        m.email = emailLower; // normalized
+        m.passwordHash = pwHash;
+        if (adminMode && approve) m.status = 'approved';
+        // keep all other fields as-is
+      }
+
+      store.setMembers(members);
+      await store.write();
+
+      return res.json({
+        ok: true,
+        member: { id: m.id, email: m.email, name: m.name, status: m.status }
       });
-      res.json({ ok: true, status: 'pending', memberId: id });
     } catch (e) {
+      console.error('register-email error', e?.message || e);
       res.status(500).json({ ok: false, error: 'server error' });
     }
   });
 
-  // Email login (approved members only)
-  r.post('/auth/login-email', async (req, res) => {
+  // Admin helper: set/reset a member's password (and optionally approve)
+  router.post('/admin/set-password', async (req, res) => {
+    if (!isAdminReq(req)) return res.status(401).json({ ok: false, error: 'admin auth required' });
+    try {
+      const { memberId, email, password, approve = false } = req.body || {};
+      const emailLower = normalizeEmail(email);
+
+      if (!password) return res.status(400).json({ ok: false, error: 'password required' });
+
+      await store.read();
+      const members = store.getMembers();
+      let m = null;
+
+      if (memberId) m = members.find(x => x.id === memberId);
+      if (!m && emailLower) m = members.find(x => (x.email || '').toLowerCase() === emailLower);
+
+      if (!m) return res.status(404).json({ ok: false, error: 'member not found' });
+
+      m.passwordHash = await bcrypt.hash(String(password), 10);
+      if (approve) m.status = 'approved';
+
+      store.setMembers(members);
+      await store.write();
+
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('admin set-password error', e?.message || e);
+      res.status(500).json({ ok: false, error: 'server error' });
+    }
+  });
+
+  // Email/password login -> JWT
+  router.post('/auth/login-email', async (req, res) => {
     try {
       const { email, password } = req.body || {};
-      const lower = normEmail(email);
-      const m = (store.members || []).find((x) => normEmail(x.email) === lower);
-      if (!m || !m.passwordHash) return res.status(400).json({ ok: false, error: 'invalid credentials' });
-      const ok = await bcrypt.compare(String(password || ''), m.passwordHash);
-      if (!ok) return res.status(400).json({ ok: false, error: 'invalid credentials' });
-      if (m.status !== 'approved') return res.status(403).json({ ok: false, error: 'pending' });
-      const token = sign(m);
-      res.json({ ok: true, token, member: { id: m.id, name: m.name, email: m.email, isAdmin: !!m.isAdmin } });
+      const emailLower = normalizeEmail(email);
+      if (!emailLower || !password) return res.status(400).json({ ok: false, error: 'email & password required' });
+
+      const m = await findMemberByEmail(emailLower);
+      if (!m || !m.passwordHash) return res.status(401).json({ ok: false, error: 'bad credentials' });
+      if (m.status !== 'approved') return res.status(403).json({ ok: false, error: m.status || 'not approved' });
+
+      const ok = await bcrypt.compare(String(password), m.passwordHash);
+      if (!ok) return res.status(401).json({ ok: false, error: 'bad credentials' });
+
+      const token = signJwt(m);
+      res.json({ ok: true, token, member: { id: m.id, name: m.name, email: m.email } });
     } catch (e) {
+      console.error('login-email error', e?.message || e);
       res.status(500).json({ ok: false, error: 'server error' });
     }
   });
 
-  // Member change password (requires current password)
-  r.post('/auth/change-password', requireAuth, requireApproved, async (req, res) => {
+  // Who am I (JWT)
+  router.get('/auth/me', requireJwt, async (req, res) => {
     try {
-      const { current, newPassword } = req.body || {};
-      if (!newPassword) return res.status(400).json({ ok: false, error: 'newPassword required' });
-      const m = req.member;
-      if (m.passwordHash) {
-        const ok = await bcrypt.compare(String(current || ''), m.passwordHash);
-        if (!ok) return res.status(400).json({ ok: false, error: 'bad current password' });
-      }
-      m.passwordHash = await bcrypt.hash(String(newPassword), 10);
-      m.mustChangePassword = false;
-      res.json({ ok: true });
+      await store.read();
+      const members = store.getMembers();
+      const me = members.find(x => x.id === req.jwt.sub);
+      if (!me) return res.status(404).json({ ok: false });
+      res.json({ ok: true, member: { id: me.id, name: me.name, email: me.email, status: me.status } });
     } catch (e) {
       res.status(500).json({ ok: false, error: 'server error' });
     }
   });
 
-  // ───────────────────────── Admin creates/updates credentials
+  // ------------- CHAT (REST; JWT-protected for send, read allowed to logged-in users) -------------
 
-  // Create an approved member with a temp password (optionally make admin)
-  r.post('/admin/create-member', requireAdmin, async (req, res) => {
-    try {
-      const { name, email, phone, tempPassword, isAdmin } = req.body || {};
-      if (!email || !tempPassword)
-        return res.status(400).json({ ok: false, error: 'email & tempPassword required' });
-      const lower = normEmail(email);
-      store.members = store.members || [];
-      if (store.members.find((m) => normEmail(m.email) === lower))
-        return res.status(409).json({ ok: false, error: 'email exists' });
-      const id = 'm_' + Date.now().toString(36);
-      const passwordHash = await bcrypt.hash(String(tempPassword), 10);
-      store.members.push({
-        id,
-        name: name || '',
-        email: lower,
-        phone: phone || null,
-        status: 'approved',
-        isAdmin: !!isAdmin,
-        passwordHash,
-        mustChangePassword: true,
-        createdAt: new Date().toISOString(),
-      });
-      res.json({ ok: true, memberId: id });
-    } catch (e) {
-      res.status(500).json({ ok: false, error: 'server error' });
-    }
+  // last 100 messages
+  router.get('/chat/messages', requireJwt, async (_req, res) => {
+    await store.read();
+    const msgs = (store.getMessages() || []).slice(-100);
+    res.json(msgs);
   });
 
-  // Set/Reset a member password (forces change on next login if you want to check that flag in UI)
-  r.post('/admin/set-password', requireAdmin, async (req, res) => {
-    try {
-      const { memberId, password } = req.body || {};
-      const m = (store.members || []).find((x) => x.id === memberId);
-      if (!m) return res.status(404).json({ ok: false, error: 'not found' });
-      m.passwordHash = await bcrypt.hash(String(password), 10);
-      m.mustChangePassword = true;
-      res.json({ ok: true });
-    } catch (e) {
-      res.status(500).json({ ok: false, error: 'server error' });
-    }
-  });
-
-  // ───────────────────────── Member profile & meetings
-
-  r.get('/me', requireAuth, requireApproved, (req, res) => {
-    const m = req.member;
-    res.json({
-      ok: true,
-      member: {
-        id: m.id,
-        name: m.name,
-        email: m.email,
-        isAdmin: !!m.isAdmin,
-        mustChangePassword: !!m.mustChangePassword,
-      },
-    });
-  });
-
-  // If your app already has GET /meetings (Bearer) implemented, Express will use the first match.
-  // You can remove this handler if it conflicts with your existing one.
-  r.get('/meetings', requireAuth, requireApproved, (req, res) => {
-    res.json({ ok: true, meetings: store.meetings || [] });
-  });
-
-  // ───────────────────────── Group chat (single "All Members" room)
-
-  r.get('/chat/rooms', requireAdminOrMember, (req, res) => {
-    res.json([{ id: 'all', name: 'All Members' }]);
-  });
-
-  // Cursor is an ISO8601 timestamp; returns messages after that timestamp (up to last 200)
-  r.get('/chat/messages', requireAdminOrMember, (req, res) => {
-    const { roomId = 'all', cursor } = req.query || {};
-    store.messages = store.messages || [];
-    const all = store.messages.filter((m) => m.roomId === roomId);
-    const since = cursor ? new Date(cursor).getTime() : 0;
-    const out = all.filter((m) => new Date(m.ts).getTime() > since).slice(-200);
-    const last = out.at(-1)?.ts || cursor || new Date(0).toISOString();
-    res.json({ messages: out, cursor: last });
-  });
-
-  r.post('/chat/send', requireAdminOrMember, (req, res) => {
-    const { roomId = 'all', text } = req.body || {};
+  // send message
+  router.post('/chat/messages', requireJwt, async (req, res) => {
+    const text = (req.body?.text || '').toString().trim();
     if (!text) return res.status(400).json({ ok: false, error: 'text required' });
 
-    let author = { id: 'admin', name: 'Admin', role: 'admin' };
-    if (req.from === 'member') {
-      const m = (store.members || []).find((x) => x.id === req.user.sub);
-      author = { id: m.id, name: m.name || m.email, role: 'member' };
+    await store.read();
+    const members = store.getMembers();
+    const me = members.find(x => x.id === req.jwt.sub);
+    if (!me || me.status !== 'approved') return res.status(403).json({ ok: false, error: 'not allowed' });
+
+    const msgs = store.getMessages() || [];
+    const msg = {
+      id: nanoid(),
+      memberId: me.id,
+      name: me.name || me.email || 'Member',
+      text,
+      ts: now()
+    };
+    msgs.push(msg);
+    store.setMessages(msgs);
+    await store.write();
+
+    // broadcast to existing Socket.IO room if provided
+    try {
+      if (io) io.emit('chat:new', msg);
+    } catch (e) {
+      console.warn('socket emit failed (non-fatal):', e?.message || e);
     }
 
-    const msg = {
-      id: 'msg_' + Date.now().toString(36),
-      roomId,
-      text: String(text),
-      fromId: author.id,
-      fromName: author.name,
-      role: author.role,
-      ts: new Date().toISOString(),
-    };
-    store.messages = store.messages || [];
-    store.messages.push(msg);
-    res.json({ ok: true, id: msg.id });
+    res.json({ ok: true, message: msg });
   });
 
-  return r;
-  export default createAuthChat;
-};
+  return router;
+}
 
-
+// Provide a default export so `import createAuthChat from ...` works.
+export default createAuthChat;
