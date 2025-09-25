@@ -13,7 +13,7 @@ import { Expo } from 'expo-server-sdk';
 import { nanoid } from 'nanoid';
 import twilio from 'twilio';
 import { Server as SocketIOServer } from 'socket.io';
-import createAuthChat from './server-addons-auth-chat.js';
+import { createAuthChat } from './server-addons-auth-chat.js';
 import jwt from 'jsonwebtoken';
 
 // ---------- Setup ----------
@@ -45,7 +45,11 @@ const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_
   : null;
 
 // ---------- Static admin ----------
-app.use('/admin', express.static(path.join(__dirname, 'admin')));
+const ADMIN_DIR = path.join(__dirname, 'admin');
+app.use('/admin', express.static(ADMIN_DIR, { index: 'index.html' }));
+app.get(['/admin', '/admin/*'], (_req, res) => {
+  res.sendFile(path.join(ADMIN_DIR, 'index.html'));
+});
 
 // ---------- Helpers ----------
 const nowMs = () => Date.now();
