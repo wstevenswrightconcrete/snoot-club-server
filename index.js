@@ -1,4 +1,4 @@
-// server/index.js — Snoot Club server (OTP auth, meetings, chat, admin-by-PIN; no auto-login)
+// server/index.js — Snoot Club server (OTP auth, meetings, chat, admin-by-PIN; JWT-compatible)
 
 import express from 'express';
 import cors from 'cors';
@@ -37,6 +37,8 @@ await db.write();
 const ADMIN_PIN   = process.env.ADMIN_PIN || '123456';
 const CRON_SECRET = process.env.CRON_SECRET || 'changeme';
 const TWILIO_FROM = process.env.TWILIO_FROM || '';
+const JWT_SECRET  = process.env.JWT_SECRET || 'dev';
+
 const expo = new Expo();
 const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
@@ -48,7 +50,6 @@ app.use('/admin', express.static(path.join(__dirname, 'admin')));
 // ---------- Helpers ----------
 const nowMs = () => Date.now();
 const byStatus = (status) => db.data.members.filter(m => m.status === status);
-const JWT_SECRET = process.env.JWT_SECRET || 'dev';
 
 function decodeJwtIfPresent(token) {
   if (!token || token.split('.').length !== 3) return null;
@@ -58,7 +59,6 @@ function decodeJwtIfPresent(token) {
     return null;
   }
 }
-
 
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 function makeCode()  { return String(Math.floor(100000 + Math.random() * 900000)); }
@@ -105,7 +105,6 @@ async function memberByToken(token) {
   return null;
 }
 
-
 async function requireAuth(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ ok:false, error:'auth required' });
@@ -137,6 +136,11 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.post('/auth/admin', (req, res) => {
   const { pin } = req.body || {};
   res.json({ ok: pin === ADMIN_PIN });
+});
+
+// Optional: admin logout (UI should just clear its local state)
+app.post('/auth/admin/logout', (_req, res) => {
+  res.json({ ok: true });
 });
 
 // ---------- Member registration & OTP login ----------
@@ -234,8 +238,12 @@ app.post('/auth/verify-code', async (req, res) => {
 
 app.post('/auth/logout', requireAuth, async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  req.member.sessionTokens = (req.member.sessionTokens || []).filter(t => t !== token);
-  await db.write();
+
+  // If it’s a session token, remove it. If it’s a JWT, nothing to revoke on server.
+  if (token.split('.').length !== 3) {
+    req.member.sessionTokens = (req.member.sessionTokens || []).filter(t => t !== token);
+    await db.write();
+  }
   res.json({ ok:true });
 });
 
@@ -395,9 +403,10 @@ const server = app.listen(port, () => {
 
 const io = new SocketIOServer(server, { cors: { origin: '*' } });
 
+// Accept either OTP session token or JWT in the handshake
 io.use(async (socket, next) => {
   try {
-    const token = socket.handshake.auth?.token || '';
+    const token = socket.handshake.auth?.token || socket.handshake.auth?.jwt || '';
     const m = await memberByToken(token);
     if (!m) return next(new Error('unauthorized'));
     socket.data.member = { id: m.id, name: m.name || '', phone: m.phone };
@@ -439,8 +448,8 @@ app.get('/chat/messages', requireAuth, async (_req, res) => {
 // ---- Mount email/password auth + REST chat under /addons ----
 app.use('/addons', createAuthChat({
   store: addonStore,
-  adminPin: ADMIN_PIN,                          // you already have this env set
-  jwtSecret: process.env.JWT_SECRET || 'dev',   // set JWT_SECRET in Render!
-  io,                                           // use your existing Socket.IO instance
+  adminPin: ADMIN_PIN,
+  jwtSecret: JWT_SECRET,
+  io,
   twilio: { client: twilioClient, from: TWILIO_FROM } // optional; keep if you want SMS later
 }));
