@@ -13,6 +13,8 @@ import { Expo } from 'expo-server-sdk';
 import { nanoid } from 'nanoid';
 import twilio from 'twilio';
 import { Server as SocketIOServer } from 'socket.io';
+import createAuthChat from './server-addons-auth-chat.js';
+import jwt from 'jsonwebtoken';
 
 // ---------- Setup ----------
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -46,6 +48,17 @@ app.use('/admin', express.static(path.join(__dirname, 'admin')));
 // ---------- Helpers ----------
 const nowMs = () => Date.now();
 const byStatus = (status) => db.data.members.filter(m => m.status === status);
+const JWT_SECRET = process.env.JWT_SECRET || 'dev';
+
+function decodeJwtIfPresent(token) {
+  if (!token || token.split('.').length !== 3) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET); // expects { sub: memberId } (add-on uses this)
+  } catch {
+    return null;
+  }
+}
+
 
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 function makeCode()  { return String(Math.floor(100000 + Math.random() * 900000)); }
@@ -77,9 +90,21 @@ function checkOtp(phone, code) {
 
 async function memberByToken(token) {
   await db.read();
-  const m = db.data.members.find(x => (x.sessionTokens || []).includes(token));
-  return m && m.status === 'approved' ? m : null;
+
+  // 1) Session token from OTP flow
+  const m1 = db.data.members.find(x => (x.sessionTokens || []).includes(token));
+  if (m1 && m1.status === 'approved') return m1;
+
+  // 2) JWT from email/password add-on
+  const dec = decodeJwtIfPresent(token);
+  if (dec) {
+    const m2 = db.data.members.find(x => x.id === dec.sub || x.email === dec.email);
+    if (m2 && m2.status === 'approved') return m2;
+  }
+
+  return null;
 }
+
 
 async function requireAuth(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -141,6 +166,24 @@ app.post('/register', async (req, res) => {
   await db.write();
   res.json({ ok:true, status:m.status, memberId:m.id });
 });
+
+// ---- Add-on store adapter (reuses your LowDB structure) ----
+const addonStore = {
+  read: async () => { await db.read(); },
+  write: async () => { await db.write(); },
+
+  // members
+  getMembers: () => db.data.members || [],
+  setMembers: (arr) => { db.data.members = arr; },
+
+  // meetings
+  getMeetings: () => db.data.meetings || [],
+  setMeetings: (arr) => { db.data.meetings = arr; },
+
+  // chat/messages (map add-on "messages" -> your existing db.data.chat)
+  getMessages: () => (db.data.chat = db.data.chat || [], db.data.chat),
+  setMessages: (arr) => { db.data.chat = arr; },
+};
 
 app.post('/auth/request-code', async (req, res) => {
   const { phone } = req.body || {};
@@ -392,3 +435,12 @@ app.get('/chat/messages', requireAuth, async (_req, res) => {
   await db.read();
   res.json((db.data.chat || []).slice(-100));
 });
+
+// ---- Mount email/password auth + REST chat under /addons ----
+app.use('/addons', createAuthChat({
+  store: addonStore,
+  adminPin: ADMIN_PIN,                          // you already have this env set
+  jwtSecret: process.env.JWT_SECRET || 'dev',   // set JWT_SECRET in Render!
+  io,                                           // use your existing Socket.IO instance
+  twilio: { client: twilioClient, from: TWILIO_FROM } // optional; keep if you want SMS later
+}));
