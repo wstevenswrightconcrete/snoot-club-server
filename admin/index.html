@@ -1,214 +1,309 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Snoot Club — Member</title>
-<style>
-  :root{--primary:#0B5778;--accent:#76B82A;--ink:#0a0a0a;--muted:#6b7280;--bg:#f6f8fb;--card:#fff;--radius:14px}
-  *{box-sizing:border-box} html,body{margin:0;background:#0d223a;color:var(--ink);font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif}
-  .wrap{max-width:940px;margin:28px auto;padding:0 16px}
-  .brand{display:flex;align-items:center;gap:12px}
-  .brand img{height:38px} .brand h1{font-size:20px;margin:0;color:var(--primary)}
-  .card{background:var(--card);border:1px solid #e6ebf0;border-radius:var(--radius);padding:16px;box-shadow:0 1px 1px rgba(0,0,0,.02);margin-top:16px}
-  label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-  input{width:100%;padding:12px;border:1px solid #d8dee6;border-radius:10px}
-  input:focus{outline:none;box-shadow:0 0 0 3px rgba(11,87,120,.15);border-color:#b8d6e4}
-  button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;background:var(--primary);color:#fff;cursor:pointer}
-  button.secondary{background:#eef5f8;color:var(--primary)}
-  .row{display:flex;gap:16px;flex-wrap:wrap} .col{flex:1 1 280px}
-  table{width:100%;border-collapse:collapse;margin-top:8px} th,td{padding:10px;border-bottom:1px solid #eef2f6;text-align:left}
-  .muted{color:var(--muted)} .spacer{flex:1}
-  [data-hidden]{display:none !important}
-  /* chat */
-  .chat-thread{height:360px;overflow:auto;border:1px solid #e6ebf0;border-radius:12px;background:#f9fafb;padding:12px}
-  .msg{max-width:72%;margin:6px 0;padding:10px 12px;border-radius:12px;box-shadow:0 1px 1px rgba(0,0,0,.03)}
-  .msg small{display:block;margin-top:6px;opacity:.8}
-  .msg.me{background:var(--primary);color:#fff;margin-left:auto;border-bottom-right-radius:4px}
-  .msg.other{background:#fff;border:1px solid #e6ebf0;border-bottom-left-radius:4px}
-  .chat-send{display:flex;gap:10px;margin-top:10px} .chat-send input{flex:1}
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Snoot Club — Admin</title>
+  <link rel="icon" href="./logo.png">
+  <style>
+    :root{
+      --brand:#0e5a8a;        /* dark teal from logo */
+      --brand-2:#2aa2d6;      /* light teal/blue from logo */
+      --bg:#f6fbff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --card:#ffffff;
+      --danger:#dc2626;
+      --ok:#16a34a;
+      --warn:#f59e0b;
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font:16px/1.4 system-ui,Segoe UI,Roboto,Arial;
+      color:var(--text); background:var(--bg);
+    }
+    header{
+      display:flex; align-items:center; gap:14px;
+      padding:18px 20px; background:linear-gradient(90deg,var(--brand),var(--brand-2));
+      color:#fff;
+    }
+    header img{height:40px}
+    header h1{font-size:18px; margin:0; font-weight:600}
+    main{max-width:1100px; margin:24px auto; padding:0 16px}
+    .card{
+      background:var(--card); border:1px solid #e2e8f0; border-radius:var(--radius);
+      padding:16px; box-shadow:0 4px 16px rgba(2,6,23,.06); margin-bottom:16px;
+    }
+    .row{display:flex; flex-wrap:wrap; gap:16px}
+    .col{flex:1 1 320px}
+    button,input,select,textarea{
+      font:inherit;
+    }
+    input,select,textarea{
+      width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:12px; background:#fff;
+    }
+    button.btn{
+      border:0; padding:10px 14px; border-radius:12px; cursor:pointer; color:#fff; background:var(--brand);
+    }
+    .btn.alt{background:var(--brand-2)}
+    .btn.danger{background:var(--danger)}
+    .btn.muted{background:#334155}
+    .btn.warn{background:var(--warn)}
+    .right{margin-left:auto}
+    .hidden{display:none !important}
+    .list{display:grid; gap:8px}
+    .item{
+      display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff;
+    }
+    .item .name{font-weight:600}
+    .item .sub{color:var(--muted); font-size:13px}
+    .pill{font-size:12px; padding:2px 8px; border-radius:999px; background:#e2e8f0}
+    .section-title{display:flex; align-items:center; gap:8px; margin:6px 0 10px}
+    .section-title h2{margin:0; font-size:16px}
+    .toolbar{display:flex; gap:8px; flex-wrap:wrap}
+    .danger-text{color:var(--danger)}
+    .note{font-size:13px; color:var(--muted)}
+    .topbar{display:flex; gap:8px; align-items:center; margin-bottom:10px}
+  </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="brand">
-      <img src="../admin/logo.png" alt="Snoot Club"/>
-      <h1>Snoot Club</h1>
-      <span class="spacer"></span>
-      <button id="btnLogout" class="secondary" data-hidden>Log out</button>
-    </div>
-
-    <!-- Login -->
-    <div id="loginCard" class="card">
-      <h2>Sign in</h2>
-      <div class="row">
-        <div class="col">
-          <label>Email</label>
-          <input id="email" type="email" placeholder="you@example.com"/>
-        </div>
-        <div class="col">
-          <label>Password</label>
-          <input id="password" type="password" placeholder="••••••••"/>
-        </div>
-      </div>
-      <div style="margin-top:12px; display:flex; gap:8px; align-items:center">
-        <button id="btnLogin">Sign in</button>
-        <span id="loginMsg" class="muted"></span>
-      </div>
-      <p class="muted" style="margin-top:10px">Don’t have an account? Ask an admin to create one for you, or sign up in the app and wait for approval.</p>
-    </div>
-
-    <!-- Dashboard -->
-    <div id="dash" data-hidden>
-      <!-- Meetings -->
-      <div class="card">
-        <h2>Upcoming meetings</h2>
-        <table id="mtgTable">
-          <thead><tr><th>Title</th><th>Starts</th><th>Location</th><th>Description</th></tr></thead>
-          <tbody id="mtgBody"><tr><td class="muted" colspan="4">Loading…</td></tr></tbody>
-        </table>
-      </div>
-
-      <!-- Chat -->
-      <div class="card">
-        <h2>All Members chat</h2>
-        <div id="chatThread" class="chat-thread" aria-live="polite"></div>
-        <div class="chat-send">
-          <input id="chatInput" placeholder="Say something to everyone…"/>
-          <button id="btnSend">Send</button>
-        </div>
-        <div id="chatMsg" class="muted" style="margin-top:8px"></div>
-      </div>
-    </div>
+<header>
+  <img src="./logo.png" alt="Logo">
+  <h1>Snoot Club — Admin Console</h1>
+  <div class="right">
+    <button id="logoutBtn" class="btn muted hidden" type="button">Log out (admin)</button>
   </div>
+</header>
+
+<main>
+  <!-- LOGIN CARD -->
+  <section id="loginCard" class="card">
+    <div class="section-title"><h2>Admin Login (PIN)</h2></div>
+    <div class="row">
+      <div class="col" style="max-width:360px">
+        <label for="pin">Enter admin PIN</label>
+        <input id="pin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="••••••">
+        <div class="topbar">
+          <button class="btn" id="unlockBtn" type="button">Unlock</button>
+          <span id="loginMsg" class="note"></span>
+        </div>
+        <p class="note">This admin view is PIN-only. Member email/password is separate and lives in the app UI.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="dash" class="hidden">
+    <div class="row">
+      <!-- MEMBERS -->
+      <div class="col">
+        <div class="card">
+          <div class="section-title">
+            <h2>Members</h2>
+            <span id="counts" class="pill">—</span>
+          </div>
+          <div class="toolbar">
+            <button class="btn alt" type="button" data-filter="pending">Pending</button>
+            <button class="btn" type="button" data-filter="approved">Approved</button>
+            <button class="btn muted" type="button" data-filter="rejected">Rejected</button>
+            <span class="note">Tip: Approve people to let them log in & chat.</span>
+          </div>
+          <div id="memberList" class="list" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- MEETINGS -->
+      <div class="col">
+        <div class="card">
+          <div class="section-title"><h2>Create Meeting</h2></div>
+          <div class="row">
+            <div class="col">
+              <label>Title</label>
+              <input id="mtTitle" placeholder="Monthly Meetup">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col"><label>Location</label><input id="mtLoc" placeholder="Clubhouse"></div>
+            <div class="col"><label>Starts At</label><input id="mtWhen" type="datetime-local"></div>
+          </div>
+          <div class="row">
+            <div class="col"><label>Description</label><textarea id="mtDesc" rows="3" placeholder="Agenda, notes…"></textarea></div>
+          </div>
+          <div class="topbar">
+            <button id="createMeetingBtn" class="btn" type="button">Create</button>
+            <span id="meetingMsg" class="note"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title"><h2>Upcoming Meetings</h2></div>
+          <div id="meetingList" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
 
 <script>
-  const API_BASE = ''; // same origin; if API lives elsewhere, put full origin here.
-  const $ = (q, el=document)=>el.querySelector(q);
-  const state = { token:null, member:null, cursor:null, poll:null };
+  const $ = sel => document.querySelector(sel);
+  const admin = {
+    get pin(){ return sessionStorage.getItem('adminPin') || ''; },
+    set pin(v){ v ? sessionStorage.setItem('adminPin', v) : sessionStorage.removeItem('adminPin'); }
+  };
 
-  function setView(){
-    const authed = !!state.token;
-    $('#loginCard')?.toggleAttribute('data-hidden', authed);
-    $('#dash')?.toggleAttribute('data-hidden', !authed);
-    $('#btnLogout')?.toggleAttribute('data-hidden', !authed);
+  const loginCard = $('#loginCard');
+  const dash = $('#dash');
+  const logoutBtn = $('#logoutBtn');
+
+  function showLogin(){ loginCard.classList.remove('hidden'); dash.classList.add('hidden'); logoutBtn.classList.add('hidden'); }
+  function showDash(){ loginCard.classList.add('hidden'); dash.classList.remove('hidden'); logoutBtn.classList.remove('hidden'); }
+
+  async function unlock(pin){
+    $('#loginMsg').textContent = 'Checking…';
+    const r = await fetch('/auth/admin', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pin })
+    }).then(r=>r.json()).catch(()=>({ok:false}));
+    if(r.ok){
+      admin.pin = pin;
+      $('#loginMsg').textContent = 'Unlocked.';
+      showDash();
+      await refreshAll();
+    }else{
+      $('#loginMsg').textContent = 'Bad PIN.';
+      admin.pin = '';
+      showLogin();
+    }
   }
 
-  async function api(path, {method='GET', body, token}={}){
-    const res = await fetch(API_BASE + path, {
-      method,
-      headers: {
-        'content-type':'application/json',
-        ...(token? {'authorization':'Bearer '+token} : {})
-      },
-      body: body ? JSON.stringify(body) : undefined
+  async function api(path, opts={}){
+    const headers = Object.assign({'X-Admin-Pin': admin.pin}, opts.headers||{});
+    const res = await fetch(path, Object.assign({}, opts, { headers }));
+    if(!res.ok){
+      let msg = '';
+      try{ const j = await res.json(); msg = j.error || res.statusText; }catch{}
+      throw new Error(msg || 'Request failed');
+    }
+    const ct = res.headers.get('content-type') || '';
+    return ct.includes('application/json') ? res.json() : res.text();
+  }
+
+  // Members
+  let currentFilter = 'pending';
+  async function loadCounts(){
+    const [pending, approved, rejected] = await Promise.all([
+      api('/members?status=pending'),
+      api('/members?status=approved'),
+      api('/members?status=rejected'),
+    ]);
+    $('#counts').textContent = `pending ${pending.length} • approved ${approved.length} • rejected ${rejected.length}`;
+  }
+  function memberRow(m){
+    const wrap = document.createElement('div');
+    wrap.className = 'item';
+    wrap.innerHTML = `
+      <div style="flex:1">
+        <div class="name">${m.name || m.phone || 'Member'}</div>
+        <div class="sub">${m.email || ''} ${m.phone ? ' • ' + m.phone : ''} ${m.isAdmin ? ' • 🛡️ admin' : ''}</div>
+      </div>
+      <div class="toolbar">
+        ${m.status!=='approved' ? `<button class="btn ok" data-act="approve">Approve</button>` : ''}
+        ${m.status!=='rejected' ? `<button class="btn warn" data-act="reject">Reject</button>` : ''}
+        ${m.isAdmin ? `<button class="btn muted" data-act="remove-admin">Remove admin</button>` : `<button class="btn alt" data-act="make-admin">Make admin</button>`}
+        <button class="btn danger" data-act="delete">Delete</button>
+      </div>
+    `.replace('btn ok','btn');
+    wrap.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const act = b.dataset.act;
+        try{
+          if(act==='approve') await api(`/members/${m.id}/approve`, {method:'POST'});
+          if(act==='reject') await api(`/members/${m.id}/reject`, {method:'POST'});
+          if(act==='make-admin') await api(`/members/${m.id}/make-admin`, {method:'POST'});
+          if(act==='remove-admin') await api(`/members/${m.id}/remove-admin`, {method:'POST'});
+          if(act==='delete') await api(`/members/${m.id}`, {method:'DELETE'});
+          await renderMembers();
+          await loadCounts();
+        }catch(e){ alert('Error: '+e.message); }
+      });
     });
-    let data=null; try{ data=await res.json(); }catch{}
-    if(!res.ok) throw new Error(data?.error || res.statusText);
-    return data ?? {};
+    return wrap;
+  }
+  async function renderMembers(){
+    const data = await api(`/members?status=${encodeURIComponent(currentFilter)}`);
+    const list = $('#memberList'); list.innerHTML='';
+    data.forEach(m => list.appendChild(memberRow(m)));
   }
 
-  async function login(){
-    $('#loginMsg').textContent = '';
-    const email = $('#email').value.trim();
-    const password = $('#password').value.trim();
-    if(!email || !password){ $('#loginMsg').textContent='Enter email and password.'; return; }
+  // Meetings
+  function meetingRow(meet){
+    const d = document.createElement('div');
+    const when = new Date(meet.startsAt).toLocaleString();
+    d.className='item';
+    d.innerHTML = `
+      <div style="flex:1">
+        <div class="name">${meet.title}</div>
+        <div class="sub">${when} • ${meet.location || 'TBA'}</div>
+      </div>
+    `;
+    return d;
+  }
+  async function renderMeetings(){
+    const data = await api('/meetings');
+    const list = $('#meetingList'); list.innerHTML='';
+    data.forEach(m => list.appendChild(meetingRow(m)));
+  }
+
+  async function createMeeting(){
+    const title = $('#mtTitle').value.trim();
+    const location = $('#mtLoc').value.trim();
+    const startsAt = $('#mtWhen').value;
+    const description = $('#mtDesc').value.trim();
+    if(!title || !startsAt){ $('#meetingMsg').textContent='Title and time required.'; return; }
+    $('#meetingMsg').textContent='Creating…';
     try{
-      const r = await api('/auth/login-email', {method:'POST', body:{email,password}});
-      state.token = r.token; state.member = r.member;
-      setView();
-      loadMeetings();
-      startChat();
-    }catch(e){
-      $('#loginMsg').textContent = e.message || 'Login failed';
+      await api('/meetings', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ title, location, description, startsAt })
+      });
+      $('#meetingMsg').textContent='Created.';
+      $('#mtTitle').value=''; $('#mtLoc').value=''; $('#mtWhen').value=''; $('#mtDesc').value='';
+      await renderMeetings();
+    }catch(e){ $('#meetingMsg').textContent = 'Error: '+e.message; }
+  }
+
+  async function refreshAll(){
+    await loadCounts();
+    await renderMembers();
+    await renderMeetings();
+  }
+
+  // Wire up UI
+  $('#unlockBtn').addEventListener('click', ()=> unlock(($('#pin').value||'').trim()));
+  $('#pin').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#unlockBtn').click(); });
+  $('#createMeetingBtn').addEventListener('click', createMeeting);
+  logoutBtn.addEventListener('click', ()=>{
+    admin.pin = '';
+    showLogin();
+    $('#loginMsg').textContent = 'Logged out.';
+  });
+  document.querySelectorAll('[data-filter]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      currentFilter = btn.dataset.filter;
+      await renderMembers();
+    });
+  });
+
+  // Auto-try stored PIN
+  (async function boot(){
+    if(admin.pin){
+      try{ await unlock(admin.pin); }catch{ showLogin(); }
+    }else{
+      showLogin();
     }
-  }
-
-  async function loadMeetings(){
-    try{
-      const r = await api('/meetings', {token:state.token});
-      const tb = $('#mtgBody');
-      const list = r.meetings || [];
-      if(!list.length){ tb.innerHTML = '<tr><td class="muted" colspan="4">No meetings yet.</td></tr>'; return; }
-      tb.innerHTML = list.map(m=>`
-        <tr>
-          <td>${escape(m.title||'')}</td>
-          <td>${escape(new Date(m.startsAt).toLocaleString())}</td>
-          <td>${escape(m.location||'')}</td>
-          <td>${escape(m.description||'')}</td>
-        </tr>`).join('');
-    }catch{ $('#mtgBody').innerHTML = '<tr><td class="muted" colspan="4">Could not load meetings.</td></tr>'; }
-  }
-
-  function escape(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
-
-  function renderMsg(m){
-    const mine = (m.fromId === state.member?.id) || (m.role==='admin' && state.member?.isAdmin);
-    const div = document.createElement('div');
-    div.className = 'msg ' + (mine ? 'me' : 'other');
-    div.innerHTML = `${escape(m.text||'')}<small>${escape(m.fromName||'')}</small>`;
-    return div;
-  }
-
-  async function pollChat(initial=false){
-    if(!state.token) return;
-    try{
-      const q = new URLSearchParams();
-      if(state.cursor) q.set('cursor', state.cursor);
-      const r = await api(`/chat/messages?roomId=all&${q.toString()}`, {token:state.token});
-      const msgs = r.messages || [];
-      if (initial && !msgs.length && !state.cursor) {
-        $('#chatThread').innerHTML = '<div class="muted">No messages yet.</div>';
-      }
-      if(msgs.length){
-        const frag = document.createDocumentFragment();
-        for(const m of msgs) frag.appendChild(renderMsg(m));
-        const th = $('#chatThread');
-        if (!state.cursor) th.innerHTML = ''; // first paint, clear
-        th.appendChild(frag);
-        th.scrollTop = th.scrollHeight + 999;
-        state.cursor = r.cursor || msgs.at(-1)?.ts;
-      }
-    }catch(e){
-      $('#chatMsg').textContent = 'Chat update failed';
-    }
-  }
-
-  function startChat(){
-    state.cursor = null;
-    $('#chatThread').innerHTML = '<div class="muted">Loading…</div>';
-    clearInterval(state.poll);
-    pollChat(true);
-    state.poll = setInterval(pollChat, 2500);
-  }
-
-  async function sendChat(){
-    const text = $('#chatInput').value.trim();
-    if(!text) return;
-    try{
-      await api('/chat/send', {method:'POST', token:state.token, body:{roomId:'all', text}});
-      $('#chatInput').value = '';
-      // optimistic paint
-      const me = { text, fromName: state.member?.name || state.member?.email || 'Me', fromId: state.member?.id, role:'member' };
-      $('#chatThread').appendChild(renderMsg(me));
-      const th = $('#chatThread'); th.scrollTop = th.scrollHeight + 999;
-    }catch(e){
-      $('#chatMsg').textContent = e.message || 'Failed to send';
-    }
-  }
-
-  function logout(){
-    state.token = null; state.member=null; state.cursor=null; clearInterval(state.poll);
-    setView();
-  }
-
-  $('#btnLogin').addEventListener('click', login);
-  $('#password').addEventListener('keydown', (e)=>{ if(e.key==='Enter') login(); });
-  $('#btnSend').addEventListener('click', sendChat);
-  $('#chatInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } });
-  $('#btnLogout').addEventListener('click', logout);
-
-  setView();
+  })();
 </script>
 </body>
 </html>
