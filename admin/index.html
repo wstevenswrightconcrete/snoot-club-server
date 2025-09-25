@@ -1,261 +1,272 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <title>Snoot Club — Admin</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root { --navy:#0D1B2A; --silver:#E0E6ED; --card:#132A4B; --line:#1b3357; --accent:#5DA3FA; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-           background:var(--navy); color:var(--silver); }
-
-    /* Gate overlay (forces PIN before anything loads) */
-    .gate {
-      position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: var(--navy);
-      padding: 24px; gap: 12px;
-    }
-    .gate img { height: 96px; }
-    .gate h1 { margin: 6px 0 12px; font-size: 22px; }
-    .gate input {
-      padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
-      background:#0c1730; color:#fff; width: 280px;
-    }
-    .btn { background:var(--accent); color:#051225; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
-    .btn.sm { padding:4px 8px; font-size:12px; }
-    .error { color:#ffb4b4; }
-
-    header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }
-    header img { height:56px; }
-    header h1 { font-size:20px; margin:0; font-weight:700; }
-    header .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
-
-    /* One clean column (full width sections) */
-    .wrap {
-      padding: 16px;
-      display: grid;
-      grid-template-columns: 1fr;   /* full-width sections stacked */
-      gap: 16px;
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-    .card { background:var(--card); border-radius:16px; padding:14px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
-    h2 { margin:6px 0 12px 0; font-size:16px; }
-
-    table { width:100%; border-collapse:collapse; }
-    th, td { text-align:left; padding:8px; border-bottom:1px solid var(--line); white-space: normal; word-break: break-word; }
-
-    input[type="text"], input[type="number"] {
-      padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background:#0c1730; color:#fff;
-    }
-    .row { display:flex; gap:8px; flex-wrap:wrap; }
+    :root { --bg:#0b1a33; --card:#112647; --text:#d9dfe8; --muted:#98a6b7; --accent:#58a6ff; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .center{display:grid;place-items:center;min-height:100vh;padding:24px}
+    .login{background:var(--card);border:1px solid #1c365f;border-radius:14px;padding:20px;max-width:420px;width:100%}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+    input,textarea,select{flex:1;min-width:220px;background:#0e203f;border:1px solid #25426f;color:var(--text);border-radius:8px;padding:10px}
+    button{background:var(--accent);color:#021a38;border:0;border-radius:8px;padding:10px 12px;cursor:pointer}
+    .muted{color:var(--muted)}
+    header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #203a66}
+    .wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+    .card{background:var(--card);border:1px solid #1c365f;border-radius:14px;padding:14px}
+    h1,h2{margin:0 0 8px 0}
+    .list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
+    .item{display:flex;gap:8px;justify-content:space-between;align-items:center;background:#0f2140;border:1px solid #203a66;border-radius:10px;padding:10px}
+    .btn{background:#2f81f7;color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
+    .btn.secondary{background:#223a66}
+    .btn.warn{background:#d9534f}
+    @media (max-width: 900px){ .wrap{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
-  <!-- LOGIN GATE -->
-  <div id="gate" class="gate" aria-modal="true" role="dialog">
-    <img src="./logo.png" alt="Snoot Club" />
-    <h1>Admin</h1>
-    <input id="pinInput" type="password" placeholder="Enter Admin PIN" />
-    <button class="btn" onclick="verifyPin()">Enter</button>
-    <div id="gateErr" class="error"></div>
-  </div>
 
-  <!-- APP (hidden until PIN verified) -->
-  <div id="app" style="display:none">
-    <header>
-      <img src="./logo.png" alt="Snoot Club" />
-      <h1>Admin</h1>
-      <div class="right">
-        <button class="btn sm" onclick="clearPin()">Clear PIN / Sign out</button>
+  <!-- Login gate (no storage, no auto-fill) -->
+  <div id="gate" class="center">
+    <div class="login">
+      <h1>Admin Login</h1>
+      <p class="muted">Enter the admin PIN to manage members and meetings. The PIN is not stored.</p>
+      <div class="row">
+        <input id="pin" type="password" placeholder="Admin PIN" autocomplete="off" />
       </div>
-    </header>
-
-    <div class="wrap">
-      <div class="card">
-        <h2>Pending</h2>
-        <div id="err-pending" class="error"></div>
-        <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
-          <tbody id="tbody-pending"></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <h2>Approved</h2>
-        <div id="err-approved" class="error"></div>
-        <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Admin</th><th>Actions</th></tr></thead>
-          <tbody id="tbody-approved"></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <h2>Rejected</h2>
-        <div id="err-rejected" class="error"></div>
-        <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
-          <tbody id="tbody-rejected"></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <h2>Create Meeting</h2>
-        <div id="err-meet" class="error"></div>
-        <div class="row">
-          <input id="mtitle" type="text" placeholder="Title" />
-          <input id="mloc" type="text" placeholder="Location" />
-          <input id="mwhen" type="text" placeholder="Starts At (ISO)" />
-          <input id="mmins" type="number" placeholder="Reminder Minutes" value="60" />
-        </div>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn" onclick="createMeeting()">Save & Notify</button>
-        </div>
+      <div class="row">
+        <button id="enter">Enter</button>
+        <span id="loginMsg" class="muted"></span>
       </div>
     </div>
   </div>
 
-<script>
-  const API = location.origin;
-  const gate = document.getElementById('gate');
-  const appEl = document.getElementById('app');
+  <!-- App (hidden until PIN validated) -->
+  <div id="app" style="display:none">
+    <header>
+      <h1>Snoot Club — Admin</h1>
+      <div class="row">
+        <button id="lock" class="btn secondary">Lock</button>
+        <span id="pinStatus" class="muted"></span>
+      </div>
+    </header>
 
-  function pin() { return localStorage.getItem('snoot_admin_pin') || ''; }
-  function setPin(v){ localStorage.setItem('snoot_admin_pin', v); }
-  function clearPin(){
-    localStorage.removeItem('snoot_admin_pin');
-    // Reset UI back to gate
-    appEl.style.display = 'none';
-    gate.style.display = 'flex';
-    document.getElementById('pinInput').value = '';
-    // Clear tables/errors
-    ['tbody-pending','tbody-approved','tbody-rejected'].forEach(id => document.getElementById(id).innerHTML = '');
-    ['err-pending','err-approved','err-rejected','err-meet'].forEach(id => document.getElementById(id).textContent = '');
-  }
+    <div class="wrap">
+      <section class="card">
+        <h2>Members — Pending</h2>
+        <div id="pending" class="list"></div>
+      </section>
 
-  async function verifyPin() {
-    const val = document.getElementById('pinInput').value.trim();
-    document.getElementById('gateErr').textContent = '';
-    try {
-      const r = await fetch(`${API}/auth/admin`, {
-        method:'POST',
-        headers:{ 'content-type':'application/json' },
-        body: JSON.stringify({ pin: val })
-      });
-      const j = await r.json().catch(()=> ({}));
-      if (j && j.ok) {
-        setPin(val);
-        gate.style.display = 'none';
-        appEl.style.display = 'block';
-        await refresh();
-      } else {
-        document.getElementById('gateErr').textContent = 'Invalid PIN';
+      <section class="card">
+        <h2>Members — Approved</h2>
+        <div id="approved" class="list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Create Meeting</h2>
+        <div class="row">
+          <input id="title" placeholder="Title" />
+          <input id="location" placeholder="Location" />
+        </div>
+        <div class="row">
+          <textarea id="description" placeholder="Description (optional)"></textarea>
+        </div>
+        <div class="row">
+          <input id="date" type="date" />
+          <input id="time" type="time" />
+          <input id="rem" type="number" min="0" step="5" value="60" />
+          <select id="notify">
+            <option value="both">Notify: SMS + Push</option>
+            <option value="sms">Notify: SMS only</option>
+            <option value="push">Notify: Push only</option>
+            <option value="none">Notify: none</option>
+          </select>
+        </div>
+        <div class="row">
+          <button class="btn" id="createBtn">Create Meeting</button>
+          <span id="createMsg" class="muted"></span>
+        </div>
+      </section>
+
+      <section class="card" style="grid-column:1 / -1">
+        <h2>Meetings</h2>
+        <div id="meetings" class="list"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const API = location.origin;
+    let PIN = ''; // lives only in memory
+
+    // UI elements
+    const gate = document.getElementById('gate');
+    const app = document.getElementById('app');
+    const pinInput = document.getElementById('pin');
+    const enterBtn = document.getElementById('enter');
+    const lockBtn = document.getElementById('lock');
+    const loginMsg = document.getElementById('loginMsg');
+    const pinStatus = document.getElementById('pinStatus');
+
+    const pendingEl = document.getElementById('pending');
+    const approvedEl = document.getElementById('approved');
+    const meetingsEl = document.getElementById('meetings');
+
+    function headers() { return { 'content-type':'application/json', 'x-admin-pin': PIN }; }
+    async function jget(path)  { const r = await fetch(API+path, { headers: headers() }); if(!r.ok) throw new Error(`GET ${path} ${r.status}`); return r.json(); }
+    async function jpost(path, body) { const r = await fetch(API+path, { method:'POST', headers: headers(), body: JSON.stringify(body||{}) }); if(!r.ok) throw new Error(`POST ${path} ${r.status}`); return r.json(); }
+
+    async function login() {
+      loginMsg.textContent = '';
+      const pin = (pinInput.value || '').trim();
+      if (!pin) { loginMsg.textContent = 'PIN required.'; return; }
+      try {
+        const res = await fetch(API + '/auth/admin', {
+          method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ pin })
+        });
+        const data = await res.json();
+        if (data?.ok) {
+          PIN = pin; // set in memory only
+          gate.style.display = 'none';
+          app.style.display = '';
+          pinStatus.textContent = 'Admin active';
+          await loadAll();
+        } else {
+          loginMsg.textContent = 'Invalid PIN.';
+        }
+      } catch (e) {
+        loginMsg.textContent = 'Failed to check PIN.';
+        console.error(e);
       }
-    } catch (e) {
-      document.getElementById('gateErr').textContent = 'Login failed';
     }
-  }
 
-  async function getJSON(url) {
-    const r = await fetch(url, { headers: { 'x-admin-pin': pin() }});
-    const data = await r.json().catch(()=> ({}));
-    if (!r.ok) throw new Error(data?.error || r.statusText || 'Request failed');
-    return data;
-  }
-  async function postJSON(url, body) {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-admin-pin': pin() },
-      body: JSON.stringify(body || {})
+    enterBtn.addEventListener('click', login);
+    pinInput.addEventListener('keyup', e => { if (e.key === 'Enter') login(); });
+    lockBtn.addEventListener('click', () => {
+      PIN = '';
+      app.style.display = 'none';
+      gate.style.display = '';
+      pinInput.value = '';
+      loginMsg.textContent = '';
+      pinStatus.textContent = '';
     });
-    const data = await r.json().catch(()=> ({}));
-    if (!r.ok) throw new Error(data?.error || r.statusText || 'Request failed');
-    return data;
-  }
 
-  function renderRows(tbodyId, arr, kind) {
-    const tb = document.getElementById(tbodyId);
-    tb.innerHTML = '';
-    (Array.isArray(arr) ? arr : []).forEach(m => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${m.name||''}</td>
-        <td>${m.phone||''}</td>
-        <td>${m.email||''}</td>
-        ${kind==='approved' ? `<td>${m.isAdmin ? 'Yes' : 'No'}</td>` : ''}
-        <td class="row">
-          ${kind==='pending' ? `
-            <button class="btn sm" onclick="act('${m.id}','approve')">Approve</button>
-            <button class="btn sm" onclick="act('${m.id}','reject')">Reject</button>
-          ` : ''}
-          ${kind!=='pending' ? `<button class="btn sm" onclick="act('${m.id}','delete')">Delete</button>` : ''}
-          ${kind==='approved' ? `
-            ${m.isAdmin
-              ? `<button class="btn sm" onclick="act('${m.id}','remove-admin')">Remove Admin</button>`
-              : `<button class="btn sm" onclick="act('${m.id}','make-admin')">Make Admin</button>`}
-          ` : ''}
-        </td>
-      `;
-      tb.appendChild(tr);
-    });
-  }
+    async function loadMembers() {
+      pendingEl.innerHTML = '<div class="muted">Loading…</div>';
+      approvedEl.innerHTML = '<div class="muted">Loading…</div>';
+      try {
+        const list = await jget('/members');
+        const pending = (list || []).filter(m => m.status === 'pending');
+        const approved = (list || []).filter(m => m.status === 'approved');
 
-  async function refresh() {
-    // If no PIN saved, stay at gate
-    if (!pin()) {
-      clearPin();
-      return;
+        pendingEl.innerHTML = '';
+        if (!pending.length) pendingEl.innerHTML = '<div class="muted">None pending</div>';
+        pending.forEach(m => {
+          const div = document.createElement('div');
+          div.className = 'item';
+          div.innerHTML = `
+            <div>
+              <div><strong>${m.name || 'Member'}</strong> · ${m.phone || ''}</div>
+              <div class="muted">ID: ${m.id}</div>
+            </div>
+            <div class="row">
+              <button class="btn" data-act="approve">Approve</button>
+              <button class="btn secondary" data-act="reject">Reject</button>
+            </div>`;
+          div.querySelector('[data-act="approve"]').onclick = async () => { await jpost(\`/members/\${m.id}/approve\`); loadMembers(); };
+          div.querySelector('[data-act="reject"]').onclick  = async () => { await jpost(\`/members/\${m.id}/reject\`);  loadMembers(); };
+          pendingEl.appendChild(div);
+        });
+
+        approvedEl.innerHTML = '';
+        if (!approved.length) approvedEl.innerHTML = '<div class="muted">No approved members yet</div>';
+        approved.forEach(m => {
+          const div = document.createElement('div');
+          div.className = 'item';
+          div.innerHTML = `
+            <div>
+              <div><strong>${m.name || 'Member'}</strong> ${m.isAdmin ? '· Admin' : ''} · ${m.phone || ''}</div>
+              <div class="muted">ID: ${m.id}</div>
+            </div>
+            <div class="row">
+              ${m.isAdmin
+                ? '<button class="btn secondary" data-act="rmadmin">Remove Admin</button>'
+                : '<button class="btn" data-act="mkadmin">Make Admin</button>'}
+              <button class="btn warn" data-act="delete">Delete</button>
+            </div>`;
+          const mk = div.querySelector('[data-act="mkadmin"]');
+          const rm = div.querySelector('[data-act="rmadmin"]');
+          const del = div.querySelector('[data-act="delete"]');
+          if (mk) mk.onclick = async () => { await jpost(\`/members/\${m.id}/make-admin\`); loadMembers(); };
+          if (rm) rm.onclick = async () => { await jpost(\`/members/\${m.id}/remove-admin\`); loadMembers(); };
+          if (del) del.onclick = async () => { await fetch(API + \`/members/\${m.id}\`, { method:'DELETE', headers: headers() }); loadMembers(); };
+          approvedEl.appendChild(div);
+        });
+      } catch (e) {
+        pendingEl.innerHTML = '<div class="muted">Failed to load (check PIN).</div>';
+        approvedEl.innerHTML = '<div class="muted">Failed to load (check PIN).</div>';
+        console.error(e);
+      }
     }
-    // clear errors
-    ['err-pending','err-approved','err-rejected','err-meet'].forEach(id=>document.getElementById(id).textContent='');
-    try {
-      const [pending, approved, rejected] = await Promise.all([
-        getJSON(`${API}/members?status=pending`),
-        getJSON(`${API}/members?status=approved`),
-        getJSON(`${API}/members?status=rejected`)
-      ]);
-      renderRows('tbody-pending', pending, 'pending');
-      renderRows('tbody-approved', approved, 'approved');
-      renderRows('tbody-rejected', rejected, 'rejected');
-    } catch (e) {
-      // On any auth error, bounce back to gate
-      clearPin();
-      document.getElementById('gateErr').textContent = (e && e.message) || 'PIN required';
-    }
-  }
 
-  async function act(id, action) {
-    const map = {
-      'approve': `${API}/members/${id}/approve`,
-      'reject': `${API}/members/${id}/reject`,
-      'delete': `${API}/members/${id}`,
-      'make-admin': `${API}/members/${id}/make-admin`,
-      'remove-admin': `${API}/members/${id}/remove-admin`,
+    async function loadMeetings() {
+      meetingsEl.innerHTML = '<div class="muted">Loading…</div>';
+      try {
+        // Server allows PIN OR Bearer via requireMemberOrAdmin
+        const list = await jget('/meetings');
+        meetingsEl.innerHTML = '';
+        if (!list.length) meetingsEl.innerHTML = '<div class="muted">No meetings yet</div>';
+        list.forEach(mt => {
+          const div = document.createElement('div');
+          const when = new Date(mt.startsAt).toLocaleString();
+          div.className = 'item';
+          div.innerHTML = `
+            <div>
+              <div><strong>${mt.title}</strong> · ${mt.location || 'TBA'}</div>
+              <div class="muted">${when} · Reminder ${mt.reminderMinutes}m before</div>
+              ${mt.description ? `<div class="muted">${mt.description}</div>` : ''}
+            </div>`;
+          meetingsEl.appendChild(div);
+        });
+      } catch (e) {
+        meetingsEl.innerHTML = '<div class="muted">Failed to load meetings (check PIN).</div>';
+        console.error(e);
+      }
+    }
+
+    document.getElementById('createBtn').onclick = async () => {
+      const title = document.getElementById('title').value.trim();
+      const desc  = document.getElementById('description').value.trim();
+      const loc   = document.getElementById('location').value.trim();
+      const date  = document.getElementById('date').value;
+      const time  = document.getElementById('time').value;
+      const rem   = parseInt(document.getElementById('rem').value || '60', 10);
+      const notify = document.getElementById('notify').value;
+      const msg = document.getElementById('createMsg');
+
+      msg.textContent = '';
+      if (!title || !date || !time) { msg.textContent = 'Title, date, and time are required.'; return; }
+
+      const startsAt = new Date(`${date}T${time}`).toISOString();
+      const body = {
+        title, description: desc, location: loc,
+        startsAt, reminderMinutes: rem,
+        sendSms: notify === 'both' || notify === 'sms',
+        sendPush: notify === 'both' || notify === 'push'
+      };
+
+      try {
+        await jpost('/meetings', body);
+        msg.textContent = 'Meeting created!';
+        await loadMeetings();
+      } catch (e) {
+        console.error(e);
+        msg.textContent = 'Failed to create meeting (check PIN).';
+      }
     };
-    try {
-      const url = map[action];
-      const opts = { method: action === 'delete' ? 'DELETE' : 'POST',
-        headers: { 'x-admin-pin': pin() } };
-      const r = await fetch(url, opts);
-      if (!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || r.statusText);
-      await refresh();
-    } catch (e) {
-      alert('Action failed: ' + (e?.message || e));
-    }
-  }
 
-  // Auto-attempt with saved PIN on load
-  window.addEventListener('load', () => {
-    const saved = pin();
-    if (saved) {
-      document.getElementById('pinInput').value = saved;
-      verifyPin();
-    } else {
-      gate.style.display = 'flex';
-      appEl.style.display = 'none';
-    }
-  });
-</script>
+    async function loadAll(){ await Promise.all([loadMembers(), loadMeetings()]); }
+  </script>
 </body>
 </html>
