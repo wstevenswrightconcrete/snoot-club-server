@@ -37,9 +37,7 @@
     }
     .row{display:flex; flex-wrap:wrap; gap:16px}
     .col{flex:1 1 320px}
-    button,input,select,textarea{
-      font:inherit;
-    }
+    button,input,select,textarea{ font:inherit; }
     input,select,textarea{
       width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:12px; background:#fff;
     }
@@ -62,7 +60,6 @@
     .section-title{display:flex; align-items:center; gap:8px; margin:6px 0 10px}
     .section-title h2{margin:0; font-size:16px}
     .toolbar{display:flex; gap:8px; flex-wrap:wrap}
-    .danger-text{color:var(--danger)}
     .note{font-size:13px; color:var(--muted)}
     .topbar{display:flex; gap:8px; align-items:center; margin-bottom:10px}
   </style>
@@ -146,25 +143,28 @@
 </main>
 
 <script>
-  const $ = sel => document.querySelector(sel);
-  const admin = {
+  var $ = function(sel){ return document.querySelector(sel); };
+  var admin = {
     get pin(){ return sessionStorage.getItem('adminPin') || ''; },
     set pin(v){ v ? sessionStorage.setItem('adminPin', v) : sessionStorage.removeItem('adminPin'); }
   };
 
-  const loginCard = $('#loginCard');
-  const dash = $('#dash');
-  const logoutBtn = $('#logoutBtn');
+  var loginCard = $('#loginCard');
+  var dash = $('#dash');
+  var logoutBtn = $('#logoutBtn');
 
   function showLogin(){ loginCard.classList.remove('hidden'); dash.classList.add('hidden'); logoutBtn.classList.add('hidden'); }
   function showDash(){ loginCard.classList.add('hidden'); dash.classList.remove('hidden'); logoutBtn.classList.remove('hidden'); }
 
   async function unlock(pin){
     $('#loginMsg').textContent = 'Checking…';
-    const r = await fetch('/auth/admin', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ pin })
-    }).then(r=>r.json()).catch(()=>({ok:false}));
+    var r;
+    try{
+      r = await fetch('/auth/admin', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ pin: pin })
+      }).then(function(r){ return r.json(); });
+    }catch(e){ r = { ok:false }; }
     if(r.ok){
       admin.pin = pin;
       $('#loginMsg').textContent = 'Unlocked.';
@@ -177,101 +177,110 @@
     }
   }
 
-  async function api(path, opts={}){
-    const headers = Object.assign({'X-Admin-Pin': admin.pin}, opts.headers||{});
-    const res = await fetch(path, Object.assign({}, opts, { headers }));
+  async function api(path, opts){
+    opts = opts || {};
+    var headers = Object.assign({ 'X-Admin-Pin': admin.pin }, opts.headers || {});
+    var res = await fetch(path, Object.assign({}, opts, { headers: headers }));
     if(!res.ok){
-      let msg = '';
-      try{ const j = await res.json(); msg = j.error || res.statusText; }catch{}
+      var msg = '';
+      try{ var j = await res.json(); msg = j.error || res.statusText; }catch(e){}
       throw new Error(msg || 'Request failed');
     }
-    const ct = res.headers.get('content-type') || '';
-    return ct.includes('application/json') ? res.json() : res.text();
+    var ct = res.headers.get('content-type') || '';
+    return ct.indexOf('application/json') !== -1 ? res.json() : res.text();
   }
 
   // Members
-  let currentFilter = 'pending';
+  var currentFilter = 'pending';
   async function loadCounts(){
-    const [pending, approved, rejected] = await Promise.all([
-      api('/members?status=pending'),
-      api('/members?status=approved'),
-      api('/members?status=rejected'),
-    ]);
-    $('#counts').textContent = `pending ${pending.length} • approved ${approved.length} • rejected ${rejected.length}`;
+    var pending = await api('/members?status=pending');
+    var approved = await api('/members?status=approved');
+    var rejected = await api('/members?status=rejected');
+    $('#counts').textContent =
+      'pending ' + pending.length + ' • approved ' + approved.length + ' • rejected ' + rejected.length;
   }
+
   function memberRow(m){
-    const wrap = document.createElement('div');
+    var wrap = document.createElement('div');
     wrap.className = 'item';
-    wrap.innerHTML = `
-      <div style="flex:1">
-        <div class="name">${m.name || m.phone || 'Member'}</div>
-        <div class="sub">${m.email || ''} ${m.phone ? ' • ' + m.phone : ''} ${m.isAdmin ? ' • 🛡️ admin' : ''}</div>
-      </div>
-      <div class="toolbar">
-        ${m.status!=='approved' ? `<button class="btn ok" data-act="approve">Approve</button>` : ''}
-        ${m.status!=='rejected' ? `<button class="btn warn" data-act="reject">Reject</button>` : ''}
-        ${m.isAdmin ? `<button class="btn muted" data-act="remove-admin">Remove admin</button>` : `<button class="btn alt" data-act="make-admin">Make admin</button>`}
-        <button class="btn danger" data-act="delete">Delete</button>
-      </div>
-    `.replace('btn ok','btn');
-    wrap.querySelectorAll('button').forEach(b=>{
-      b.addEventListener('click', async ()=>{
-        const act = b.dataset.act;
+
+    var name = (m.name || m.phone || 'Member');
+    var sub = (m.email || '') + (m.phone ? ' • ' + m.phone : '') + (m.isAdmin ? ' • 🛡️ admin' : '');
+
+    var buttons = '';
+    if(m.status !== 'approved') buttons += '<button class="btn" data-act="approve">Approve</button>';
+    if(m.status !== 'rejected') buttons += ' <button class="btn warn" data-act="reject">Reject</button>';
+    buttons += ' ' + (m.isAdmin
+      ? '<button class="btn muted" data-act="remove-admin">Remove admin</button>'
+      : '<button class="btn alt" data-act="make-admin">Make admin</button>');
+    buttons += ' <button class="btn danger" data-act="delete">Delete</button>';
+
+    wrap.innerHTML =
+      '<div style="flex:1">' +
+        '<div class="name">' + name + '</div>' +
+        '<div class="sub">' + sub + '</div>' +
+      '</div>' +
+      '<div class="toolbar">' + buttons + '</div>';
+
+    wrap.querySelectorAll('button').forEach(function(b){
+      b.addEventListener('click', async function(){
+        var act = b.getAttribute('data-act');
         try{
-          if(act==='approve') await api(`/members/${m.id}/approve`, {method:'POST'});
-          if(act==='reject') await api(`/members/${m.id}/reject`, {method:'POST'});
-          if(act==='make-admin') await api(`/members/${m.id}/make-admin`, {method:'POST'});
-          if(act==='remove-admin') await api(`/members/${m.id}/remove-admin`, {method:'POST'});
-          if(act==='delete') await api(`/members/${m.id}`, {method:'DELETE'});
+          if(act==='approve') await api('/members/' + m.id + '/approve', {method:'POST'});
+          if(act==='reject') await api('/members/' + m.id + '/reject', {method:'POST'});
+          if(act==='make-admin') await api('/members/' + m.id + '/make-admin', {method:'POST'});
+          if(act==='remove-admin') await api('/members/' + m.id + '/remove-admin', {method:'POST'});
+          if(act==='delete') await api('/members/' + m.id, {method:'DELETE'});
           await renderMembers();
           await loadCounts();
-        }catch(e){ alert('Error: '+e.message); }
+        }catch(e){ alert('Error: ' + e.message); }
       });
     });
     return wrap;
   }
+
   async function renderMembers(){
-    const data = await api(`/members?status=${encodeURIComponent(currentFilter)}`);
-    const list = $('#memberList'); list.innerHTML='';
-    data.forEach(m => list.appendChild(memberRow(m)));
+    var data = await api('/members?status=' + encodeURIComponent(currentFilter));
+    var list = $('#memberList'); list.innerHTML='';
+    data.forEach(function(m){ list.appendChild(memberRow(m)); });
   }
 
   // Meetings
   function meetingRow(meet){
-    const d = document.createElement('div');
-    const when = new Date(meet.startsAt).toLocaleString();
+    var d = document.createElement('div');
+    var when = new Date(meet.startsAt).toLocaleString();
     d.className='item';
-    d.innerHTML = `
-      <div style="flex:1">
-        <div class="name">${meet.title}</div>
-        <div class="sub">${when} • ${meet.location || 'TBA'}</div>
-      </div>
-    `;
+    d.innerHTML =
+      '<div style="flex:1">' +
+        '<div class="name">' + meet.title + '</div>' +
+        '<div class="sub">' + when + ' • ' + (meet.location || 'TBA') + '</div>' +
+      '</div>';
     return d;
   }
+
   async function renderMeetings(){
-    const data = await api('/meetings');
-    const list = $('#meetingList'); list.innerHTML='';
-    data.forEach(m => list.appendChild(meetingRow(m)));
+    var data = await api('/meetings');
+    var list = $('#meetingList'); list.innerHTML='';
+    data.forEach(function(m){ list.appendChild(meetingRow(m)); });
   }
 
   async function createMeeting(){
-    const title = $('#mtTitle').value.trim();
-    const location = $('#mtLoc').value.trim();
-    const startsAt = $('#mtWhen').value;
-    const description = $('#mtDesc').value.trim();
+    var title = $('#mtTitle').value.trim();
+    var location = $('#mtLoc').value.trim();
+    var startsAt = $('#mtWhen').value;
+    var description = $('#mtDesc').value.trim();
     if(!title || !startsAt){ $('#meetingMsg').textContent='Title and time required.'; return; }
     $('#meetingMsg').textContent='Creating…';
     try{
       await api('/meetings', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ title, location, description, startsAt })
+        body: JSON.stringify({ title: title, location: location, description: description, startsAt: startsAt })
       });
       $('#meetingMsg').textContent='Created.';
       $('#mtTitle').value=''; $('#mtLoc').value=''; $('#mtWhen').value=''; $('#mtDesc').value='';
       await renderMeetings();
-    }catch(e){ $('#meetingMsg').textContent = 'Error: '+e.message; }
+    }catch(e){ $('#meetingMsg').textContent = 'Error: ' + e.message; }
   }
 
   async function refreshAll(){
@@ -281,17 +290,17 @@
   }
 
   // Wire up UI
-  $('#unlockBtn').addEventListener('click', ()=> unlock(($('#pin').value||'').trim()));
-  $('#pin').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#unlockBtn').click(); });
+  $('#unlockBtn').addEventListener('click', function(){ unlock(($('#pin').value||'').trim()); });
+  $('#pin').addEventListener('keydown', function(e){ if(e.key==='Enter') $('#unlockBtn').click(); });
   $('#createMeetingBtn').addEventListener('click', createMeeting);
-  logoutBtn.addEventListener('click', ()=>{
+  logoutBtn.addEventListener('click', function(){
     admin.pin = '';
     showLogin();
     $('#loginMsg').textContent = 'Logged out.';
   });
-  document.querySelectorAll('[data-filter]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      currentFilter = btn.dataset.filter;
+  document.querySelectorAll('[data-filter]').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      currentFilter = btn.getAttribute('data-filter');
       await renderMembers();
     });
   });
@@ -299,7 +308,7 @@
   // Auto-try stored PIN
   (async function boot(){
     if(admin.pin){
-      try{ await unlock(admin.pin); }catch{ showLogin(); }
+      try{ await unlock(admin.pin); }catch(e){ showLogin(); }
     }else{
       showLogin();
     }
