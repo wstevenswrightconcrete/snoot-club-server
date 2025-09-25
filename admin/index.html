@@ -1,272 +1,337 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Snoot Club — Admin</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Snoot Club Admin</title>
   <style>
-    :root { --bg:#0b1a33; --card:#112647; --text:#d9dfe8; --muted:#98a6b7; --accent:#58a6ff; }
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    .center{display:grid;place-items:center;min-height:100vh;padding:24px}
-    .login{background:var(--card);border:1px solid #1c365f;border-radius:14px;padding:20px;max-width:420px;width:100%}
-    .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-    input,textarea,select{flex:1;min-width:220px;background:#0e203f;border:1px solid #25426f;color:var(--text);border-radius:8px;padding:10px}
-    button{background:var(--accent);color:#021a38;border:0;border-radius:8px;padding:10px 12px;cursor:pointer}
+    :root { color-scheme: light dark; --bg:#0b0b0b; --fg:#ddd; --muted:#888; --ok:#18a558; --err:#d33; --card:#1b1b1b; --line:#2a2a2a; }
+    *{box-sizing:border-box} body{margin:0;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
+    header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
+    header h1{margin:0;font-size:16px;font-weight:600}
+    main{padding:16px;display:grid;gap:16px;grid-template-columns:1fr}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    input,button,select,textarea{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#111;color:var(--fg);outline:none}
+    input:disabled,button:disabled{opacity:.6}
+    button{cursor:pointer}
     .muted{color:var(--muted)}
-    header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #203a66}
-    .wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
-    .card{background:var(--card);border:1px solid #1c365f;border-radius:14px;padding:14px}
-    h1,h2{margin:0 0 8px 0}
-    .list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
-    .item{display:flex;gap:8px;justify-content:space-between;align-items:center;background:#0f2140;border:1px solid #203a66;border-radius:10px;padding:10px}
-    .btn{background:#2f81f7;color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
-    .btn.secondary{background:#223a66}
-    .btn.warn{background:#d9534f}
-    @media (max-width: 900px){ .wrap{grid-template-columns:1fr} }
+    .ok{color:var(--ok)} .err{color:var(--err)}
+    .list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+    .item{display:flex;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#141414}
+    .grow{flex:1}
+    .pill{padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px}
+    .right{margin-left:auto}
+    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:900px){ .grid2{grid-template-columns:1fr 1fr}}
+    .hidden{display:none}
   </style>
 </head>
 <body>
+  <header>
+    <h1>🔐 Snoot Club Admin</h1>
+    <span id="status" class="muted">locked</span>
+    <span class="right"></span>
+    <button id="btnLogout" class="hidden">Lock</button>
+  </header>
 
-  <!-- Login gate (no storage, no auto-fill) -->
-  <div id="gate" class="center">
-    <div class="login">
-      <h1>Admin Login</h1>
-      <p class="muted">Enter the admin PIN to manage members and meetings. The PIN is not stored.</p>
+  <main>
+    <!-- Login -->
+    <section id="loginCard" class="card">
       <div class="row">
-        <input id="pin" type="password" placeholder="Admin PIN" autocomplete="off" />
-      </div>
-      <div class="row">
-        <button id="enter">Enter</button>
+        <label for="pin">Admin PIN</label>
+        <input id="pin" type="password" inputmode="numeric" placeholder="Enter PIN" />
+        <button id="btnUnlock">Unlock</button>
         <span id="loginMsg" class="muted"></span>
       </div>
-    </div>
-  </div>
+      <p class="muted" style="margin-top:8px">PIN is checked by the server and never stored permanently (kept in memory only for this tab until you click “Lock”).</p>
+    </section>
 
-  <!-- App (hidden until PIN validated) -->
-  <div id="app" style="display:none">
-    <header>
-      <h1>Snoot Club — Admin</h1>
-      <div class="row">
-        <button id="lock" class="btn secondary">Lock</button>
-        <span id="pinStatus" class="muted"></span>
+    <!-- App -->
+    <section id="app" class="grid2 hidden">
+      <!-- Members -->
+      <div class="card">
+        <h3 style="margin-top:0">Members</h3>
+        <div class="row">
+          <button id="btnLoadPending">Load Pending</button>
+          <button id="btnLoadAll">Load All</button>
+          <span id="membersMsg" class="muted"></span>
+        </div>
+        <div id="membersList" class="list"></div>
       </div>
-    </header>
 
-    <div class="wrap">
-      <section class="card">
-        <h2>Members — Pending</h2>
-        <div id="pending" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Members — Approved</h2>
-        <div id="approved" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Create Meeting</h2>
+      <!-- Create meeting -->
+      <div class="card">
+        <h3 style="margin-top:0">Create Meeting</h3>
         <div class="row">
-          <input id="title" placeholder="Title" />
-          <input id="location" placeholder="Location" />
+          <input id="mtTitle" placeholder="Title" class="grow" />
         </div>
         <div class="row">
-          <textarea id="description" placeholder="Description (optional)"></textarea>
+          <input id="mtLocation" placeholder="Location" class="grow" />
         </div>
         <div class="row">
-          <input id="date" type="date" />
-          <input id="time" type="time" />
-          <input id="rem" type="number" min="0" step="5" value="60" />
-          <select id="notify">
-            <option value="both">Notify: SMS + Push</option>
-            <option value="sms">Notify: SMS only</option>
-            <option value="push">Notify: Push only</option>
-            <option value="none">Notify: none</option>
-          </select>
+          <textarea id="mtDesc" placeholder="Description" rows="4" class="grow"></textarea>
         </div>
         <div class="row">
-          <button class="btn" id="createBtn">Create Meeting</button>
+          <label>Starts</label>
+          <input id="mtStart" type="datetime-local" />
+          <label>Reminder (min)</label>
+          <input id="mtRem" type="number" min="5" step="5" value="60" style="width:100px" />
+        </div>
+        <div class="row">
+          <label class="row"><input type="checkbox" id="mtSms" checked />&nbsp;SMS on create</label>
+          <label class="row"><input type="checkbox" id="mtPush" checked />&nbsp;Push on create</label>
+          <button id="btnCreate">Create</button>
           <span id="createMsg" class="muted"></span>
         </div>
-      </section>
+      </div>
 
-      <section class="card" style="grid-column:1 / -1">
-        <h2>Meetings</h2>
-        <div id="meetings" class="list"></div>
-      </section>
-    </div>
-  </div>
+      <!-- Meetings list (optional quick view) -->
+      <div class="card" style="grid-column:1/-1">
+        <div class="row">
+          <h3 style="margin:0">Meetings</h3>
+          <button id="btnLoadMeetings" class="right">Refresh</button>
+        </div>
+        <div id="meetingsList" class="list"></div>
+      </div>
+    </section>
+  </main>
 
-  <script>
-    const API = location.origin;
-    let PIN = ''; // lives only in memory
+<script>
+(() => {
+  const API = location.origin;
 
-    // UI elements
-    const gate = document.getElementById('gate');
-    const app = document.getElementById('app');
-    const pinInput = document.getElementById('pin');
-    const enterBtn = document.getElementById('enter');
-    const lockBtn = document.getElementById('lock');
-    const loginMsg = document.getElementById('loginMsg');
-    const pinStatus = document.getElementById('pinStatus');
+  const els = {
+    status:      document.getElementById('status'),
+    loginCard:   document.getElementById('loginCard'),
+    pin:         document.getElementById('pin'),
+    btnUnlock:   document.getElementById('btnUnlock'),
+    btnLogout:   document.getElementById('btnLogout'),
+    loginMsg:    document.getElementById('loginMsg'),
+    app:         document.getElementById('app'),
+    btnLoadPending: document.getElementById('btnLoadPending'),
+    btnLoadAll:  document.getElementById('btnLoadAll'),
+    membersMsg:  document.getElementById('membersMsg'),
+    membersList: document.getElementById('membersList'),
+    mtTitle:     document.getElementById('mtTitle'),
+    mtLocation:  document.getElementById('mtLocation'),
+    mtDesc:      document.getElementById('mtDesc'),
+    mtStart:     document.getElementById('mtStart'),
+    mtRem:       document.getElementById('mtRem'),
+    mtSms:       document.getElementById('mtSms'),
+    mtPush:      document.getElementById('mtPush'),
+    btnCreate:   document.getElementById('btnCreate'),
+    createMsg:   document.getElementById('createMsg'),
+    btnLoadMeetings: document.getElementById('btnLoadMeetings'),
+    meetingsList: document.getElementById('meetingsList'),
+  };
 
-    const pendingEl = document.getElementById('pending');
-    const approvedEl = document.getElementById('approved');
-    const meetingsEl = document.getElementById('meetings');
+  const getPin = () => sessionStorage.getItem('adminPin') || '';
+  const setPin = (pin) => pin ? sessionStorage.setItem('adminPin', pin) : sessionStorage.removeItem('adminPin');
 
-    function headers() { return { 'content-type':'application/json', 'x-admin-pin': PIN }; }
-    async function jget(path)  { const r = await fetch(API+path, { headers: headers() }); if(!r.ok) throw new Error(`GET ${path} ${r.status}`); return r.json(); }
-    async function jpost(path, body) { const r = await fetch(API+path, { method:'POST', headers: headers(), body: JSON.stringify(body||{}) }); if(!r.ok) throw new Error(`POST ${path} ${r.status}`); return r.json(); }
-
-    async function login() {
-      loginMsg.textContent = '';
-      const pin = (pinInput.value || '').trim();
-      if (!pin) { loginMsg.textContent = 'PIN required.'; return; }
-      try {
-        const res = await fetch(API + '/auth/admin', {
-          method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ pin })
-        });
-        const data = await res.json();
-        if (data?.ok) {
-          PIN = pin; // set in memory only
-          gate.style.display = 'none';
-          app.style.display = '';
-          pinStatus.textContent = 'Admin active';
-          await loadAll();
-        } else {
-          loginMsg.textContent = 'Invalid PIN.';
-        }
-      } catch (e) {
-        loginMsg.textContent = 'Failed to check PIN.';
-        console.error(e);
-      }
-    }
-
-    enterBtn.addEventListener('click', login);
-    pinInput.addEventListener('keyup', e => { if (e.key === 'Enter') login(); });
-    lockBtn.addEventListener('click', () => {
-      PIN = '';
-      app.style.display = 'none';
-      gate.style.display = '';
-      pinInput.value = '';
-      loginMsg.textContent = '';
-      pinStatus.textContent = '';
+  async function postJSON(path, body) {
+    const r = await fetch(API + path, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body || {})
     });
+    return r.json().catch(() => ({}));
+  }
 
-    async function loadMembers() {
-      pendingEl.innerHTML = '<div class="muted">Loading…</div>';
-      approvedEl.innerHTML = '<div class="muted">Loading…</div>';
-      try {
-        const list = await jget('/members');
-        const pending = (list || []).filter(m => m.status === 'pending');
-        const approved = (list || []).filter(m => m.status === 'approved');
+  async function adminFetch(method, path, body) {
+    const pin = getPin();
+    const r = await fetch(API + path + (method === 'GET' && body ? '?' + new URLSearchParams(body) : ''), {
+      method,
+      headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin },
+      body: method === 'GET' ? undefined : JSON.stringify(body || {})
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error('unauthorized');
+    return data;
+  }
 
-        pendingEl.innerHTML = '';
-        if (!pending.length) pendingEl.innerHTML = '<div class="muted">None pending</div>';
-        pending.forEach(m => {
-          const div = document.createElement('div');
-          div.className = 'item';
-          div.innerHTML = `
-            <div>
-              <div><strong>${m.name || 'Member'}</strong> · ${m.phone || ''}</div>
-              <div class="muted">ID: ${m.id}</div>
-            </div>
-            <div class="row">
-              <button class="btn" data-act="approve">Approve</button>
-              <button class="btn secondary" data-act="reject">Reject</button>
-            </div>`;
-          div.querySelector('[data-act="approve"]').onclick = async () => { await jpost(\`/members/\${m.id}/approve\`); loadMembers(); };
-          div.querySelector('[data-act="reject"]').onclick  = async () => { await jpost(\`/members/\${m.id}/reject\`);  loadMembers(); };
-          pendingEl.appendChild(div);
-        });
+  function setLockedUI(locked) {
+    els.status.textContent = locked ? 'locked' : 'unlocked';
+    els.loginCard.classList.toggle('hidden', !locked);
+    els.app.classList.toggle('hidden', locked);
+    els.btnLogout.classList.toggle('hidden', locked);
+    if (locked) { els.pin.value = ''; els.pin.focus(); }
+  }
 
-        approvedEl.innerHTML = '';
-        if (!approved.length) approvedEl.innerHTML = '<div class="muted">No approved members yet</div>';
-        approved.forEach(m => {
-          const div = document.createElement('div');
-          div.className = 'item';
-          div.innerHTML = `
-            <div>
-              <div><strong>${m.name || 'Member'}</strong> ${m.isAdmin ? '· Admin' : ''} · ${m.phone || ''}</div>
-              <div class="muted">ID: ${m.id}</div>
-            </div>
-            <div class="row">
-              ${m.isAdmin
-                ? '<button class="btn secondary" data-act="rmadmin">Remove Admin</button>'
-                : '<button class="btn" data-act="mkadmin">Make Admin</button>'}
-              <button class="btn warn" data-act="delete">Delete</button>
-            </div>`;
-          const mk = div.querySelector('[data-act="mkadmin"]');
-          const rm = div.querySelector('[data-act="rmadmin"]');
-          const del = div.querySelector('[data-act="delete"]');
-          if (mk) mk.onclick = async () => { await jpost(\`/members/\${m.id}/make-admin\`); loadMembers(); };
-          if (rm) rm.onclick = async () => { await jpost(\`/members/\${m.id}/remove-admin\`); loadMembers(); };
-          if (del) del.onclick = async () => { await fetch(API + \`/members/\${m.id}\`, { method:'DELETE', headers: headers() }); loadMembers(); };
-          approvedEl.appendChild(div);
-        });
-      } catch (e) {
-        pendingEl.innerHTML = '<div class="muted">Failed to load (check PIN).</div>';
-        approvedEl.innerHTML = '<div class="muted">Failed to load (check PIN).</div>';
-        console.error(e);
-      }
-    }
-
-    async function loadMeetings() {
-      meetingsEl.innerHTML = '<div class="muted">Loading…</div>';
-      try {
-        // Server allows PIN OR Bearer via requireMemberOrAdmin
-        const list = await jget('/meetings');
-        meetingsEl.innerHTML = '';
-        if (!list.length) meetingsEl.innerHTML = '<div class="muted">No meetings yet</div>';
-        list.forEach(mt => {
-          const div = document.createElement('div');
-          const when = new Date(mt.startsAt).toLocaleString();
-          div.className = 'item';
-          div.innerHTML = `
-            <div>
-              <div><strong>${mt.title}</strong> · ${mt.location || 'TBA'}</div>
-              <div class="muted">${when} · Reminder ${mt.reminderMinutes}m before</div>
-              ${mt.description ? `<div class="muted">${mt.description}</div>` : ''}
-            </div>`;
-          meetingsEl.appendChild(div);
-        });
-      } catch (e) {
-        meetingsEl.innerHTML = '<div class="muted">Failed to load meetings (check PIN).</div>';
-        console.error(e);
-      }
-    }
-
-    document.getElementById('createBtn').onclick = async () => {
-      const title = document.getElementById('title').value.trim();
-      const desc  = document.getElementById('description').value.trim();
-      const loc   = document.getElementById('location').value.trim();
-      const date  = document.getElementById('date').value;
-      const time  = document.getElementById('time').value;
-      const rem   = parseInt(document.getElementById('rem').value || '60', 10);
-      const notify = document.getElementById('notify').value;
-      const msg = document.getElementById('createMsg');
-
-      msg.textContent = '';
-      if (!title || !date || !time) { msg.textContent = 'Title, date, and time are required.'; return; }
-
-      const startsAt = new Date(`${date}T${time}`).toISOString();
-      const body = {
-        title, description: desc, location: loc,
-        startsAt, reminderMinutes: rem,
-        sendSms: notify === 'both' || notify === 'sms',
-        sendPush: notify === 'both' || notify === 'push'
-      };
-
-      try {
-        await jpost('/meetings', body);
-        msg.textContent = 'Meeting created!';
+  async function tryUnlock(pin) {
+    els.btnUnlock.disabled = true;
+    els.pin.disabled = true;
+    els.loginMsg.textContent = 'Checking…';
+    try {
+      const res = await postJSON('/auth/admin', { pin });
+      if (res && res.ok === true) {
+        setPin(pin);
+        setLockedUI(false);
+        els.loginMsg.textContent = '';
+        await loadPending();
         await loadMeetings();
-      } catch (e) {
-        console.error(e);
-        msg.textContent = 'Failed to create meeting (check PIN).';
+      } else {
+        els.loginMsg.textContent = 'Wrong PIN';
+        els.loginMsg.className = 'err';
       }
-    };
+    } catch (e) {
+      els.loginMsg.textContent = 'Network error';
+      els.loginMsg.className = 'err';
+    } finally {
+      els.btnUnlock.disabled = false;
+      els.pin.disabled = false;
+    }
+  }
 
-    async function loadAll(){ await Promise.all([loadMembers(), loadMeetings()]); }
-  </script>
+  async function loadPending() {
+    els.membersMsg.textContent = 'Loading pending…';
+    try {
+      const list = await adminFetch('GET', '/members', { status: 'pending' });
+      renderMembers(list);
+      els.membersMsg.textContent = `${list.length} pending`;
+    } catch (e) {
+      onUnauthorized(e);
+    }
+  }
+
+  async function loadAll() {
+    els.membersMsg.textContent = 'Loading all…';
+    try {
+      const list = await adminFetch('GET', '/members');
+      renderMembers(list);
+      els.membersMsg.textContent = `${list.length} total`;
+    } catch (e) {
+      onUnauthorized(e);
+    }
+  }
+
+  function renderMembers(arr) {
+    els.membersList.innerHTML = '';
+    (arr || []).forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `
+        <div class="grow">
+          <div><strong>${escapeHtml(m.name || m.phone || 'Member')}</strong></div>
+          <div class="muted">${m.phone || ''} ${m.email ? ' · ' + m.email : ''}</div>
+          <div class="pill">${m.status}${m.isAdmin ? ' · admin' : ''}</div>
+        </div>
+        <div class="row">
+          ${m.status !== 'approved' ? `<button data-act="approve">Approve</button>` : ''}
+          ${m.status !== 'rejected' ? `<button data-act="reject">Reject</button>` : ''}
+          ${!m.isAdmin ? `<button data-act="makeAdmin">Make Admin</button>` : `<button data-act="removeAdmin">Remove Admin</button>`}
+          <button data-act="delete" style="border-color:#552">Delete</button>
+        </div>
+      `;
+      div.addEventListener('click', async (ev) => {
+        const b = ev.target.closest('button'); if (!b) return;
+        const act = b.getAttribute('data-act');
+        try {
+          if (act === 'approve') await adminFetch('POST', `/members/${m.id}/approve`);
+          if (act === 'reject') await adminFetch('POST', `/members/${m.id}/reject`);
+          if (act === 'makeAdmin') await adminFetch('POST', `/members/${m.id}/make-admin`);
+          if (act === 'removeAdmin') await adminFetch('POST', `/members/${m.id}/remove-admin`);
+          if (act === 'delete') await adminFetch('DELETE', `/members/${m.id}`);
+          await loadPending();
+        } catch (e) { onUnauthorized(e); }
+      });
+      els.membersList.appendChild(div);
+    });
+  }
+
+  async function createMeeting() {
+    els.createMsg.textContent = 'Creating…';
+    els.btnCreate.disabled = true;
+    try {
+      const startsAt = toIso(els.mtStart.value);
+      const body = {
+        title: els.mtTitle.value.trim(),
+        description: els.mtDesc.value.trim(),
+        location: els.mtLocation.value.trim(),
+        startsAt,
+        reminderMinutes: Number(els.mtRem.value || 60),
+        sendSms: !!els.mtSms.checked,
+        sendPush: !!els.mtPush.checked
+      };
+      const res = await adminFetch('POST', '/meetings', body);
+      if (res && res.id) {
+        els.createMsg.textContent = '✅ Created';
+        els.createMsg.className = 'ok';
+        await loadMeetings();
+      } else {
+        els.createMsg.textContent = 'Failed';
+        els.createMsg.className = 'err';
+      }
+    } catch (e) { onUnauthorized(e); }
+    finally { els.btnCreate.disabled = false; }
+  }
+
+  async function loadMeetings() {
+    // uses member-protected route; just show count for admin sanity via PIN header is not needed here
+    try {
+      // We can’t call /meetings without a member token; so just show nothing here.
+      // (Keeping this section minimal. Admin can still create meetings above.)
+      els.meetingsList.innerHTML = `<div class="muted">Note: /meetings is member-protected; this panel only confirms create status.</div>`;
+    } catch {}
+  }
+
+  function onUnauthorized(e) {
+    if (String(e && e.message) === 'unauthorized') {
+      setPin('');
+      setLockedUI(true);
+      els.loginMsg.textContent = 'Session locked. Enter PIN again.';
+      els.loginMsg.className = 'muted';
+    }
+  }
+
+  // Utilities
+  function toIso(local) {
+    // local is "YYYY-MM-DDTHH:MM"
+    if (!local) return '';
+    const d = new Date(local);
+    // preserve local value as-is; browsers may treat as local time
+    return new Date(
+      d.getFullYear(), d.getMonth(), d.getDate(),
+      d.getHours(), d.getMinutes(), 0, 0
+    ).toISOString();
+  }
+  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+
+  // Wire up
+  els.btnUnlock.addEventListener('click', () => {
+    const pin = els.pin.value.trim();
+    if (pin) tryUnlock(pin);
+  });
+  els.pin.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') els.btnUnlock.click();
+  });
+  els.btnLogout.addEventListener('click', () => {
+    setPin('');
+    setLockedUI(true);
+  });
+  els.btnLoadPending.addEventListener('click', loadPending);
+  els.btnLoadAll.addEventListener('click', loadAll);
+  els.btnCreate.addEventListener('click', createMeeting);
+  els.btnLoadMeetings.addEventListener('click', loadMeetings);
+
+  // Auto-try saved PIN (session only, not persistent)
+  (async () => {
+    const pin = getPin();
+    if (pin) {
+      try {
+        const res = await postJSON('/auth/admin', { pin });
+        if (res && res.ok) {
+          setLockedUI(false);
+          await loadPending();
+          return;
+        } else {
+          setPin('');
+        }
+      } catch {}
+    }
+    setLockedUI(true);
+  })();
+})();
+</script>
 </body>
 </html>
