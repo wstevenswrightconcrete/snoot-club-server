@@ -1,6 +1,8 @@
 // server-addons-auth-chat.js — Email/password auth (+ optional /addons/chat endpoints)
 // Requires: npm i bcryptjs jsonwebtoken
 
+import express from 'express';
+import bodyParser from 'body-parser';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -13,8 +15,8 @@ export default function createAuthChat(opts = {}) {
     twilio           // { client, from } (optional – reserved for later)
   } = opts;
 
-  const router = (await import('express')).default.Router();
-  router.use((await import('body-parser')).json());
+  const router = express.Router();
+  router.use(bodyParser.json());
 
   // ---- Helpers ----
   function signToken(member) {
@@ -42,7 +44,7 @@ export default function createAuthChat(opts = {}) {
       email: cleanEmail,
       name: name || cleanEmail,
       phone: '',
-      status: 'approved',          // email signups are admin-managed in real life; keep simple here
+      status: 'approved',
       isAdmin: false,
       sessionTokens: [],
       passwordHash: hash,
