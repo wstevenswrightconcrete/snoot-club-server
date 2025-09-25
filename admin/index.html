@@ -1,392 +1,338 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Snoot Club • Admin</title>
-
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Snoot Club — Admin</title>
   <style>
     :root{
-      --sc-navy:#0c2138;       /* from logo */
-      --sc-silver:#d0cfc8;     /* from logo */
-      --sc-steel:#b2b4b1;      /* from logo (muted) */
-      --sc-ink:#0e1a27;        /* darker for cards/borders */
-      --radius:16px;
+      /* pulled from your logo */
+      --primary:#0B5778;   /* deep teal-blue */
+      --accent:#76B82A;    /* lime/green */
+      --ink:#0a0a0a;
+      --muted:#6b7280;
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --danger:#b91c1c;
+      --warn:#c2410c;
+      --ok:#15803d;
+      --ring: 0 0 0 3px rgba(11,87,120,.15);
+      --radius:14px;
     }
     *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
-      color:var(--sc-silver);
-      background:var(--sc-navy);
-      display:flex;align-items:center;justify-content:center;
-      padding:24px;
-    }
-    .shell{width:min(1100px,100%);}
-
-    /* header */
-    .brand{
-      display:flex; align-items:center; gap:16px; margin-bottom:16px;
-    }
-    .brand img{
-      width:64px; height:64px; border-radius:12px; object-fit:contain; background:#0b1f33;
-      box-shadow:0 0 0 1px rgba(208,207,200,.08), 0 6px 20px rgba(0,0,0,.35);
-    }
-    .brand h1{margin:0; font-size:28px; letter-spacing:.04em; font-weight:650;}
-
-    /* cards */
-    .card{
-      background:linear-gradient(180deg, #102338, #0a1a2b);
-      border:1px solid rgba(178,180,177,.25);
-      border-radius:var(--radius);
-      box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
-      padding:20px;
-    }
-    .grid{
-      display:grid; gap:16px;
-      grid-template-columns:1.2fr 1fr;
-    }
-    @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
-
-    h2{margin:.2rem 0 1rem; font-size:18px; font-weight:650; color:var(--sc-silver)}
-    label{display:block; font-size:13px; color:var(--sc-steel); margin:10px 0 6px;}
-    input, select, button, textarea{
-      width:100%; padding:12px 12px; border-radius:10px; border:1px solid rgba(178,180,177,.25);
-      background:#0c1f33; color:var(--sc-silver); outline:none;
-    }
-    input:focus, textarea:focus, select:focus{border-color:#d0cfc8}
-    button{
-      background:#0f2a44; border-color:#2f4760; cursor:pointer; font-weight:600;
-    }
-    button:hover{filter:brightness(1.05)}
-    .actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .sm{padding:8px 10px; font-size:13px}
-    .warn{background:#3b2631; border-color:#714459}
-    .ok{background:#1f3b2a; border-color:#4c8461}
-
-    /* tables */
-    table{width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; border:1px solid rgba(178,180,177,.22)}
-    th, td{padding:12px 10px; text-align:left}
-    th{font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--sc-steel); background:#0b1f2a}
-    tr:nth-child(even) td{background:#0b1e31}
-    tr:nth-child(odd) td{background:#0c2034}
-
-    /* states */
+    html,body{margin:0;padding:0;font-family:system-ui,ui-sans-serif,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    .brand{display:flex;align-items:center;gap:14px}
+    .brand img{height:38px;width:auto}
+    .brand h1{font-size:20px;margin:0;font-weight:700;color:var(--primary)}
+    .tag{font-size:12px;padding:4px 8px;border-radius:999px;background:#e5f3f9;color:var(--primary);border:1px solid #cfe7f1}
+    .spacer{flex:1}
+    button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;background:var(--primary);color:#fff}
+    button.secondary{background:#eef5f8;color:var(--primary)}
+    button.warn{background:var(--warn)}
+    button.sm{padding:8px 12px;font-size:13px}
+    button:disabled{opacity:.55;cursor:default}
+    input,textarea{width:100%;padding:12px 12px;border-radius:10px;border:1px solid #d8dee6;background:#fff}
+    input:focus,textarea:focus{outline:none;box-shadow:var(--ring);border-color:#b8d6e4}
+    .row{display:flex;gap:16px;flex-wrap:wrap}
+    .col{flex:1 1 320px}
+    .card{background:var(--card);border:1px solid #e6ebf0;border-radius:var(--radius);padding:16px;box-shadow:0 1px 1px rgba(0,0,0,.02)}
+    .card h2{margin:0 0 12px 0;font-size:16px;color:var(--primary)}
+    .muted{color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #eef2f6;text-align:left;font-size:14px;vertical-align:middle}
+    th{font-size:12px;color:#4b5563;text-transform:uppercase;letter-spacing:.04em;background:#f9fbfc}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef5ea;color:#166534;font-size:12px;border:1px solid #d5efcd}
+    .danger{background:#fee2e2 !important;color:#991b1b !important;border-color:#fecaca !important}
+    .tools{display:flex;gap:8px;flex-wrap:wrap}
     [data-hidden]{display:none !important}
-    .muted{color:var(--sc-steel)}
-    .note{font-size:13px; color:var(--sc-steel)}
-    .tag{display:inline-block; padding:.2rem .5rem; border:1px solid rgba(178,180,177,.35); border-radius:999px; font-size:12px; color:var(--sc-steel)}
-    .toast{
-      position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
-      background:#0b1e31; color:var(--sc-silver); border:1px solid rgba(178,180,177,.25);
-      padding:10px 14px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.4); display:none;
-    }
+    .actions{display:flex;gap:10px;align-items:center}
+    .footer{margin-top:24px;font-size:12px;color:var(--muted)}
+    /* login card centered-ish on first load */
+    #lockCard{margin-top:18px}
+    /* toast */
+    .toast{position:fixed;right:16px;bottom:16px;background:#111827;color:#fff;padding:10px 14px;border-radius:10px;opacity:0;transform:translateY(8px);transition:.2s}
+    .toast.show{opacity:1;transform:translateY(0)}
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div class="wrap">
     <div class="brand">
-      <img src="logo.png" alt="Snoot Club logo" />
+      <img src="logo.png" alt="Snoot Club logo"/>
       <h1>Snoot Club — Admin</h1>
       <span id="adminStatus" class="tag" aria-live="polite">Locked</span>
-    
       <span class="spacer"></span>
       <button id="btnLogout" class="sm warn" data-hidden>Log out</button>
     </div>
 
-
     <!-- LOCK SCREEN -->
-    <div id="lockCard" class="card" role="region" aria-labelledby="lockTitle">
-      <h2 id="lockTitle">Enter Admin PIN</h2>
-      <p class="note">This protects the dashboard. Your PIN is validated against the server and never stored server-side in the page.</p>
-      <label for="pin">PIN</label>
-      <input id="pin" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit PIN" />
-      <div class="actions" style="margin-top:10px">
-        <button id="btnUnlock">Unlock</button>
-        <button id="btnForget" class="sm warn" data-hidden>Forget saved PIN</button>
-        <span id="unlockMsg" class="note"></span>
+    <div id="lockCard" class="card" role="region" aria-label="Unlock admin">
+      <h2>Admin access</h2>
+      <p class="muted" id="lockHint">Enter your admin PIN to unlock this panel.</p>
+      <div class="row">
+        <div class="col">
+          <label for="pinInput" class="muted">Admin PIN</label>
+          <input id="pinInput" type="password" placeholder="••••••" inputmode="numeric" autocomplete="off"/>
+        </div>
       </div>
+      <div class="actions" style="margin-top:12px">
+        <button id="btnUnlock">Unlock</button>
+      </div>
+      <div class="muted" id="lockMsg" style="margin-top:8px"></div>
     </div>
 
     <!-- DASHBOARD (hidden until unlocked) -->
-    <div id="dash" class="grid" data-hidden>
-      <!-- LEFT: Members -->
-      <section class="card">
-        <h2>Memberships</h2>
-        <div class="actions" style="margin-bottom:8px">
-          <button class="sm" id="btnReloadMembers">Reload</button>
-          <span id="memberCounts" class="note"></span>
+    <div id="dash" data-hidden>
+      <div class="row" style="margin-top:18px">
+        <!-- Pending -->
+        <div class="col">
+          <div class="card">
+            <h2>Pending memberships</h2>
+            <table>
+              <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
+              <tbody id="pendingTbody">
+                <tr><td class="muted" colspan="4">No pending sign-ups.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-
-        <h3 class="muted" style="margin:.8rem 0 .4rem">Pending</h3>
-        <div id="pendingWrap">
-          <table aria-label="Pending members">
-            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
-            <tbody id="pendingTbody"><tr><td class="muted" colspan="4">No pending sign-ups.</td></tr></tbody>
-          </table>
+        <!-- Approved -->
+        <div class="col">
+          <div class="card">
+            <h2>Approved members</h2>
+            <table>
+              <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+              <tbody id="approvedTbody">
+                <tr><td class="muted" colspan="5">No approved members.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
 
-        <h3 class="muted" style="margin:1.2rem 0 .4rem">Approved</h3>
-        <div id="approvedWrap">
-          <table aria-label="Approved members">
-            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
-            <tbody id="approvedTbody"><tr><td class="muted" colspan="5">No approved members yet.</td></tr></tbody>
-          </table>
+      <!-- Create Meeting (admin-only; still hidden until unlocked) -->
+      <div class="card" style="margin-top:18px">
+        <h2>Create a meeting</h2>
+        <div class="row">
+          <div class="col">
+            <label class="muted">Title</label>
+            <input id="mtgTitle" placeholder="Club meetup"/>
+          </div>
+          <div class="col">
+            <label class="muted">Starts at (ISO)</label>
+            <input id="mtgStart" placeholder="2025-10-01T18:00:00Z"/>
+          </div>
         </div>
-      </section>
-
-      <!-- RIGHT: Meetings -->
-      <section class="card">
-        <h2>Create a Meeting</h2>
-        <p class="note">Only visible after the PIN is validated. Uses the <code>x-admin-pin</code> header for every request.</p>
-        <label for="title">Title</label>
-        <input id="title" placeholder="e.g., October Tasting" />
-
-        <label for="startsAt">Starts (UTC)</label>
-        <input id="startsAt" type="datetime-local" />
-
-        <label for="desc">Description (optional)</label>
-        <textarea id="desc" rows="4" placeholder="Optional notes…"></textarea>
-
-        <div class="actions" style="margin-top:10px">
-          <button id="btnCreate" class="ok">Create Meeting</button>
-          <button id="btnReloadMeetings" class="sm">Reload Meetings</button>
-          <span id="createMsg" class="note"></span>
+        <div class="row" style="margin-top:10px">
+          <div class="col">
+            <label class="muted">Location</label>
+            <input id="mtgLocation" placeholder="Main Hall"/>
+          </div>
+          <div class="col">
+            <label class="muted">Description</label>
+            <input id="mtgDesc" placeholder="Bring your pup & vibes"/>
+          </div>
         </div>
-
-        <h3 class="muted" style="margin:1.2rem 0 .4rem">Upcoming Meetings</h3>
-        <div id="mtgsWrap">
-          <table aria-label="Meetings">
-            <thead><tr><th>When (UTC)</th><th>Title</th><th>ID</th></tr></thead>
-            <tbody id="mtgsTbody"><tr><td class="muted" colspan="3">No meetings yet.</td></tr></tbody>
-          </table>
+        <div class="actions" style="margin-top:12px">
+          <label class="muted"><input type="checkbox" id="mtgSms" checked/> SMS members on create</label>
+          <label class="muted"><input type="checkbox" id="mtgPush" checked/> Push members on create</label>
+          <span class="spacer"></span>
+          <button id="btnCreateMeeting">Create meeting</button>
         </div>
-      </section>
+        <div class="muted" id="mtgMsg" style="margin-top:8px"></div>
+      </div>
+
+      <div class="footer">
+        You are using an admin PIN-gated panel. Keep your PIN secret.
+      </div>
     </div>
-
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
 
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
   <script>
-    // ----------------------------
-    // Small helper around fetch
-    // ----------------------------
-    const API = (path, {method='GET', body, pin}={}) => {
-      const headers = {'content-type':'application/json'};
-      // attach admin header when we have a PIN (all admin endpoints expect this)
-      if(pin) headers['x-admin-pin'] = pin;
-      return fetch(path, {method, headers, body: body?JSON.stringify(body):undefined})
-        .then(async res => {
-          // allow HTML error bodies (e.g. a 502 page) to not blow up JSON.parse
-          const text = await res.text();
-          let data = {};
-          try{ data = text ? JSON.parse(text) : {}; }catch{ data = {ok:false, error: text?.slice(0,100) || 'bad response'} }
-          if(!res.ok || data.ok === false) throw Object.assign(new Error(data.error || res.statusText), {data, status: res.status});
-          return data;
-        });
+    // ---------- Mini helpers ----------
+    const $ = (q, el=document)=>el.querySelector(q);
+    const $$ = (q, el=document)=>Array.from(el.querySelectorAll(q));
+    const show = (el, on=true)=> el?.toggleAttribute('data-hidden', !on);
+    const toast = (msg) => {
+      const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+      setTimeout(()=>t.classList.remove('show'), 1800);
+    };
+    const fmt = {
+      phone: s => (s||'').replace(/^\+1(\d{3})(\d{3})(\d{4})$/,'($1) $2-$3').replace(/^\+/, '+') || s || ''
     };
 
-    // ----------------------------
-    // UI helpers
-    // ----------------------------
-    const $ = sel => document.querySelector(sel);
-    const $$ = sel => Array.from(document.querySelectorAll(sel));
-    const show = (el, s=true) => s ? el.removeAttribute('data-hidden') : el.setAttribute('data-hidden','');
-    const toast = (msg, ms=2400) => { const t=$('#toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none', ms); };
+    async function API(path, {method='GET', headers={}, pin, body} = {}) {
+      const h = {'content-type':'application/json', ...headers};
+      if (pin) h['x-admin-pin'] = pin; // server accepts PIN header
+      const res = await fetch(path, {method, headers:h, body: body ? JSON.stringify(body) : undefined});
+      let data = null;
+      try { data = await res.json(); } catch {}
+      if (!res.ok) throw new Error(data?.error || res.statusText);
+      return data ?? {};
+    }
 
-    // ----------------------------
-    // State
-    // ----------------------------
-    const getPin = () => localStorage.getItem('sc_admin_pin') || '';
-    const setPin = pin => pin ? localStorage.setItem('sc_admin_pin', pin) : localStorage.removeItem('sc_admin_pin');
-
-    const state = {
-      unlocked:false,
-      pin:getPin()
-    };
+    const state = { unlocked:false, pin:'' };
 
     const reflectLockState = () => {
       $('#adminStatus').textContent = state.unlocked ? 'Unlocked' : 'Locked';
-      $('#btnForget').toggleAttribute('data-hidden', !state.pin);
+      show($('#btnLogout'), state.unlocked);
       show($('#dash'), state.unlocked);
       show($('#lockCard'), !state.unlocked);
-      if(state.unlocked){ loadMembers(); loadMeetings(); }
+      if (state.unlocked) {
+        loadMembers();
+      }
     };
 
-    // ----------------------------
-    // Unlock flow
-    // ----------------------------
-    async function unlock(pin){
-      $('#unlockMsg').textContent = 'Checking…';
-      try{
-        const res = await API('/auth/admin', {method:'POST', body:{pin}});
-        // if we got here, server accepted the PIN
-        state.unlocked = true;
-        state.pin = pin;
-        setPin(pin);
-        $('#unlockMsg').textContent = 'Unlocked';
-        reflectLockState();
-        toast('Admin unlocked');
-      }catch(err){
-        $('#unlockMsg').textContent = 'Incorrect PIN';
-        toast('PIN rejected', 2000);
+    // ---------- Unlock / Lock ----------
+    async function unlock() {
+      const pin = $('#pinInput').value.trim();
+      $('#lockMsg').textContent = '';
+      if (!pin) { $('#lockMsg').textContent = 'Enter your PIN.'; return; }
+      try {
+        const r = await API('/auth/admin', {method:'POST', body:{pin}});
+        if (r?.ok) {
+          state.pin = pin;
+          state.unlocked = true;
+          reflectLockState();
+          toast('Admin unlocked');
+          $('#pinInput').value = '';
+        } else {
+          $('#lockMsg').textContent = 'Invalid PIN.';
+        }
+      } catch(e){
+        $('#lockMsg').textContent = 'Invalid PIN.';
       }
     }
 
-    // ----------------------------
-    // Members
-    // ----------------------------
+    function logout(){
+      state.pin = '';
+      state.unlocked = false;
+      // Wipe tables on logout so nothing lingers
+      $('#pendingTbody').innerHTML  = '<tr><td class="muted" colspan="4">No pending sign-ups.</td></tr>';
+      $('#approvedTbody').innerHTML = '<tr><td class="muted" colspan="5">No approved members.</td></tr>';
+      reflectLockState();
+      toast('Logged out');
+    }
+
+    // ---------- Members ----------
     async function loadMembers(){
-      const pin = state.pin;
-      $('#memberCounts').textContent = 'Loading…';
-      try{
-        // Primary shape: {ok:true, pending:[...], approved:[...]}
-        let data = await API('/admin/members', {pin});
-        if(!data.pending && !data.approved){
-          // fallback: two endpoints
-          const [pending, approved] = await Promise.all([
-            API('/admin/members?status=pending',{pin}),
-            API('/admin/members?status=approved',{pin})
-          ]);
-          data = {pending: pending.members || pending, approved: approved.members || approved};
-        }
-        renderMembers(data.pending||[], data.approved||[]);
-      }catch(err){
-        console.error(err);
-        renderMembers([],[]);
-        toast('Failed to load members (check PIN)', 3000);
+      try {
+        const [pending, approved] = await Promise.all([
+          API('/members?status=pending',  {pin:state.pin}),
+          API('/members?status=approved', {pin:state.pin})
+        ]);
+        renderPending(pending||[]);
+        renderApproved(approved||[]);
+      } catch(e){
+        // If admin header missing/invalid, you’ll see a 401 here
+        console.error(e);
+        toast('Could not load members');
       }
     }
 
-    function renderMembers(pending, approved){
-      const pT = $('#pendingTbody'), aT = $('#approvedTbody');
-      pT.innerHTML = pending.length ? '' : `<tr><td class="muted" colspan="4">No pending sign-ups.</td></tr>`;
-      approved = approved || [];
-      aT.innerHTML = approved.length ? '' : `<tr><td class="muted" colspan="5">No approved members.</td></tr>`;
-
-      for(const m of pending){
+    function renderPending(list){
+      const tb = $('#pendingTbody');
+      if (!list.length){ tb.innerHTML = '<tr><td class="muted" colspan="4">No pending sign-ups.</td></tr>'; return; }
+      tb.innerHTML = '';
+      for (const m of list){
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${esc(m.name)}</td>
-          <td>${esc(m.phone||'')}</td>
-          <td>${esc(m.email||'')}</td>
-          <td class="actions">
-            <button class="sm ok" onclick="approveMember('${m.memberId||m.id}', false)">Approve</button>
-            <button class="sm" onclick="approveMember('${m.memberId||m.id}', true)">Approve as Admin</button>
+          <td>${m.name || '(no name)'}<div class="muted" style="font-size:12px">id: ${m.id}</div></td>
+          <td>${fmt.phone(m.phone)}</td>
+          <td>${m.email || ''}</td>
+          <td class="tools">
+            <button class="sm" data-act="approve" data-id="${m.id}">Approve</button>
+            <button class="sm danger" data-act="reject" data-id="${m.id}">Reject</button>
           </td>`;
-        pT.appendChild(tr);
+        tb.appendChild(tr);
       }
+    }
 
-      for(const m of approved){
+    function renderApproved(list){
+      const tb = $('#approvedTbody');
+      if (!list.length){ tb.innerHTML = '<tr><td class="muted" colspan="5">No approved members.</td></tr>'; return; }
+      tb.innerHTML = '';
+      for (const m of list){
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${esc(m.name)}</td>
-          <td>${esc(m.phone||'')}</td>
-          <td>${esc(m.email||'')}</td>
-          <td>${m.isAdmin ? '<span class="tag">Admin</span>' : '<span class="tag">Member</span>'}</td>
-          <td class="actions">
-            ${m.isAdmin ? '' : `<button class="sm" onclick="makeAdmin('${m.memberId||m.id}')">Make Admin</button>`}
-            <button class="sm warn" onclick="revokeMember('${m.memberId||m.id}')">Revoke</button>
+          <td>${m.name || '(no name)'}<div class="muted" style="font-size:12px">id: ${m.id}</div></td>
+          <td>${fmt.phone(m.phone)}</td>
+          <td>${m.email || ''}</td>
+          <td>${m.isAdmin ? '<span class="pill">Admin</span>' : '<span class="pill">Member</span>'}</td>
+          <td class="tools">
+            ${m.isAdmin
+              ? '<button class="sm secondary" data-act="remove-admin" data-id="'+m.id+'">Remove admin</button>'
+              : '<button class="sm" data-act="make-admin" data-id="'+m.id+'">Make admin</button>'}
+            <button class="sm danger" data-act="delete" data-id="${m.id}">Delete</button>
           </td>`;
-        aT.appendChild(tr);
-      }
-
-      $('#memberCounts').textContent = `Pending: ${pending.length} • Approved: ${approved.length}`;
-    }
-
-    async function approveMember(id, asAdmin){
-      try{
-        await API('/admin/approve', {method:'POST', body:{memberId:id, admin:!!asAdmin}, pin:state.pin});
-        toast(asAdmin ? 'Approved as admin' : 'Approved');
-        loadMembers();
-      }catch(e){ toast('Approve failed'); }
-    }
-    async function makeAdmin(id){
-      try{
-        await API('/admin/make-admin', {method:'POST', body:{memberId:id}, pin:state.pin});
-        toast('Granted admin');
-        loadMembers();
-      }catch(e){ toast('Grant failed'); }
-    }
-    async function revokeMember(id){
-      if(!confirm('Revoke this member?')) return;
-      try{
-        await API('/admin/revoke', {method:'POST', body:{memberId:id}, pin:state.pin});
-        toast('Revoked');
-        loadMembers();
-      }catch(e){ toast('Revoke failed'); }
-    }
-
-    // ----------------------------
-    // Meetings
-    // ----------------------------
-    async function loadMeetings(){
-      const t = $('#mtgsTbody');
-      t.innerHTML = `<tr><td class="muted" colspan="3">Loading…</td></tr>`;
-      try{
-        const data = await API('/meetings', {pin:state.pin}); // many backends allow x-admin-pin here too
-        const list = data.meetings || data || [];
-        t.innerHTML = '';
-        if(!list.length){ t.innerHTML = `<tr><td class="muted" colspan="3">No meetings yet.</td></tr>`; return; }
-        for(const m of list){
-          const when = (m.startsAt || m.start || '').replace('T',' ').replace('Z',' UTC');
-          const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${esc(when)}</td><td>${esc(m.title||'')}</td><td class="muted">${esc(m.id || m.meetingId || '')}</td>`;
-          t.appendChild(tr);
-        }
-      }catch(e){
-        t.innerHTML = `<tr><td class="muted" colspan="3">Couldn’t load meetings.</td></tr>`;
+        tb.appendChild(tr);
       }
     }
 
+    // Row action handlers (event delegation)
+    $('#pendingTbody').addEventListener('click', async (e)=>{
+      const btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      const id = btn.dataset.id, act = btn.dataset.act;
+      try{
+        if (act==='approve')  await API(`/members/${id}/approve`, {method:'POST', pin:state.pin});
+        if (act==='reject')   await API(`/members/${id}/reject`,  {method:'POST', pin:state.pin});
+        await loadMembers();
+        toast('Updated');
+      }catch(err){ toast('Action failed'); }
+    });
+
+    $('#approvedTbody').addEventListener('click', async (e)=>{
+      const btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      const id = btn.dataset.id, act = btn.dataset.act;
+      try{
+        if (act==='make-admin')    await API(`/members/${id}/make-admin`,   {method:'POST', pin:state.pin});
+        if (act==='remove-admin')  await API(`/members/${id}/remove-admin`, {method:'POST', pin:state.pin});
+        if (act==='delete')        await API(`/members/${id}`,             {method:'DELETE', pin:state.pin});
+        await loadMembers();
+        toast('Updated');
+      }catch(err){ toast('Action failed'); }
+    });
+
+    // ---------- Meetings (create only from admin) ----------
     async function createMeeting(){
-      const body = {
-        title: $('#title').value.trim(),
-        startsAt: $('#startsAt').value ? new Date($('#startsAt').value).toISOString() : '',
-        description: $('#desc').value.trim()
-      };
-      if(!body.title || !body.startsAt){
-        $('#createMsg').textContent = 'Title and start time are required.';
+      const title = $('#mtgTitle').value.trim();
+      const startsAt = $('#mtgStart').value.trim();
+      const location = $('#mtgLocation').value.trim();
+      const description = $('#mtgDesc').value.trim();
+      const sendSms  = $('#mtgSms').checked;
+      const sendPush = $('#mtgPush').checked;
+
+      $('#mtgMsg').textContent = '';
+      if (!title || !startsAt){
+        $('#mtgMsg').textContent = 'Title and Starts at are required (ISO date).';
         return;
       }
-      $('#createMsg').textContent = 'Creating…';
       try{
-        await API('/meetings', {method:'POST', body, pin:state.pin});
-        $('#createMsg').textContent = 'Created ✓';
-        $('#title').value = ''; $('#startsAt').value = ''; $('#desc').value='';
-        loadMeetings();
+        await API('/meetings', {
+          method:'POST',
+          pin: state.pin,
+          body:{ title, startsAt, location, description, sendSms, sendPush }
+        });
         toast('Meeting created');
+        $('#mtgTitle').value=''; $('#mtgStart').value=''; $('#mtgLocation').value=''; $('#mtgDesc').value='';
       }catch(e){
-        $('#createMsg').textContent = 'Admin auth required (check PIN).';
-        toast('Create failed: admin auth required', 3200);
+        // most common: wrong/missing PIN -> server: {"ok":false,"error":"admin pin required"}
+        $('#mtgMsg').textContent = e.message || 'Failed to create meeting';
       }
     }
 
-    // ----------------------------
-    // Utilities
-    // ----------------------------
-    const esc = s => (s??'').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    // ---------- Wire up ----------
+    $('#btnUnlock').addEventListener('click', unlock);
+    $('#pinInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') unlock(); });
+    $('#btnLogout').addEventListener('click', logout);
+    $('#btnCreateMeeting').addEventListener('click', createMeeting);
 
-    // ----------------------------
-    // Wire up
-    // ----------------------------
-    $('#btnUnlock').addEventListener('click', () => unlock($('#pin').value.trim()));
-    $('#pin').addEventListener('keydown', e => { if(e.key === 'Enter') $('#btnUnlock').click(); });
-    $('#btnForget').addEventListener('click', () => { setPin(''); state.pin=''; state.unlocked=false; reflectLockState(); toast('PIN cleared'); });
-    $('#btnCreate').addEventListener('click', createMeeting);
-    $('#btnReloadMembers').addEventListener('click', loadMembers);
-    $('#btnReloadMeetings').addEventListener('click', loadMeetings);
-
-    // Auto-prompt if a PIN was saved earlier
-    (function init(){
-      if(state.pin){
-        // Try to unlock silently so the dashboard appears right away for admins
-        unlock(state.pin);
-      }else{
-        reflectLockState();
-      }
-    })();
+    // initial
+    reflectLockState();
   </script>
 </body>
 </html>
