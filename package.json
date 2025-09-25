@@ -1,25 +1,25 @@
 {
   "name": "snoot-club-server",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "body-parser": "^1.20.2",
-    "cors": "^2.8.5",
-    "expo-server-sdk": "^4.0.0",
-    "express": "^4.19.2",
-    "lowdb": "^7.0.1",
-    "nanoid": "^5.0.7",
-    "socket.io": "^4.7.5",
-    "twilio": "^5.2.2",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
+    "start": "node index.js",
+    "dev": "node index.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18.18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "expo-server-sdk": "^3.9.0",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "lowdb": "^6.0.1",
+    "nanoid": "^4.0.2",
+    "socket.io": "^4.7.5",
+    "twilio": "^5.2.2"
   }
 }
-
