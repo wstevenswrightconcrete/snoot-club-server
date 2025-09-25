@@ -1,167 +1,265 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Snoot Club • Admin</title>
+  <link rel="icon" href="./logo.png"/>
 
-  <!-- Brand colors -->
   <style>
     :root{
-      --sc-navy:#0D2139;
-      --sc-silver:#B8BAB6;
-      --sc-slate:#676F79;
-      --sc-navy-dark:#081D35;
-      --sc-navy-darker:#041932;
-      --radius:14px;
+      --sc-navy:#0D2139; --sc-silver:#B8BAB6; --sc-slate:#676F79;
+      --sc-navy-dark:#081D35; --sc-navy-darker:#041932; --r:14px;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      background:var(--sc-navy);
-      color:var(--sc-silver);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
-      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--sc-navy);color:var(--sc-silver);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .hidden{display:none!important}
 
-    /* Header */
-    .app-header{
-      display:flex; align-items:center; gap:14px;
-      padding:18px 20px;
+    header{display:flex;align-items:center;gap:14px;padding:18px 20px;
       border-bottom:1px solid var(--sc-navy-dark);
-      background:linear-gradient(180deg, var(--sc-navy) 0%, var(--sc-navy-dark) 100%);
-      position:sticky; top:0; z-index:10;
-    }
-    .logo{
-      height:44px; width:auto; display:block;
-      filter: drop-shadow(0 1px 0 var(--sc-navy-darker));
-      user-select:none;
-    }
-    .brand{
-      line-height:1.1;
-    }
-    .brand-title{
-      font-size: clamp(18px, 2.4vw, 22px);
-      letter-spacing:.04em; font-weight:700;
-      color:var(--sc-silver);
-    }
-    .brand-sub{
-      font-size:12px; color:var(--sc-slate); letter-spacing:.12em;
-    }
+      background:linear-gradient(180deg,var(--sc-navy),var(--sc-navy-dark))}
+    .logo{height:44px;filter:drop-shadow(0 1px 0 var(--sc-navy-darker))}
+    .brand-title{font-weight:700;letter-spacing:.04em}
+    .brand-sub{font-size:12px;color:var(--sc-slate);letter-spacing:.12em}
 
-    /* Page shell */
-    .wrap{max-width:980px; margin:28px auto; padding:0 20px}
-    .card{
-      background:rgba(4,25,50,.55);
-      border:1px solid var(--sc-navy-dark);
-      border-radius:var(--radius);
-      box-shadow:0 12px 30px rgba(4,25,50,.45), inset 0 1px 0 rgba(184,186,182,.06);
-      padding:20px;
-    }
-    h1{margin:.2em 0 .6em; font-size:26px; color:var(--sc-silver)}
+    .wrap{max-width:1040px;margin:28px auto;padding:0 20px}
+    .card{background:rgba(4,25,50,.55);border:1px solid var(--sc-navy-dark);
+      border-radius:var(--r);box-shadow:0 12px 30px rgba(4,25,50,.45), inset 0 1px 0 rgba(184,186,182,.06);
+      padding:20px;margin-bottom:16px}
+    h1{margin:.2em 0 .6em;font-size:26px}
+    h2{margin:.2em 0 .6em;font-size:18px;color:var(--sc-silver)}
 
-    /* Buttons / inputs */
-    .row{display:flex; gap:10px; flex-wrap:wrap}
-    input,button,select{
-      font:inherit;
-      border-radius:12px;
-      border:1px solid var(--sc-navy-dark);
-      background:#0b1f34;
-      color:var(--sc-silver);
-      padding:10px 12px;
-      outline:none;
-    }
+    input,button,select{font:inherit;border-radius:12px;border:1px solid var(--sc-navy-dark);
+      background:#0b1f34;color:var(--sc-silver);padding:10px 12px;outline:none}
     input::placeholder{color:#7e8792}
-    button{
-      background:linear-gradient(180deg, #0f2742 0%, #0b1f34 100%);
-      border:1px solid var(--sc-navy-dark);
-      font-weight:600; letter-spacing:.02em; cursor:pointer;
-    }
-    button:hover{filter:brightness(1.07)}
-    button:active{transform:translateY(1px)}
-    .muted{color:var(--sc-slate)}
-
-    /* Small helpers */
-    .spacer{height:14px}
+    button{background:linear-gradient(180deg,#0f2742,#0b1f34);font-weight:600;cursor:pointer}
+    button:hover{filter:brightness(1.07)} button:active{transform:translateY(1px)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .muted{color:var(--sc-slate)} .spacer{height:10px}
+    .table{width:100%;border-collapse:separate;border-spacing:0 10px}
+    .tr{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:10px;
+      padding:12px;border:1px solid var(--sc-navy-dark);border-radius:12px;background:#0b1f34}
+    .pill{font-size:12px;border:1px solid var(--sc-navy-dark);border-radius:999px;padding:4px 10px}
+    .btn-sm{padding:8px 10px;border-radius:10px}
   </style>
-
-  <link rel="icon" href="./logo.png" />
 </head>
 <body>
-  <header class="app-header">
-    <!-- Use a relative path; fallback tries /admin/logo.png if needed -->
+  <header>
     <img class="logo" src="./logo.png" alt="Snoot Club" onerror="this.onerror=null;this.src='/admin/logo.png'">
-    <div class="brand">
+    <div>
       <div class="brand-title">SNOOT CLUB</div>
       <div class="brand-sub">EST 1937 • ADMIN</div>
     </div>
   </header>
 
   <main class="wrap">
-    <div class="card">
-      <h1>Admin Dashboard</h1>
-
-      <!-- example: your existing controls go here -->
+    <!-- LOGIN CARD (shown first) -->
+    <section id="loginCard" class="card">
+      <h1>Admin Login</h1>
       <div class="row">
-        <input id="pin" placeholder="Enter Admin PIN" inputmode="numeric" maxlength="6" />
-        <button id="adminLoginBtn">Unlock Admin</button>
+        <input id="pin" placeholder="Enter Admin PIN" inputmode="numeric" maxlength="6">
+        <button id="unlockBtn">Unlock Admin</button>
       </div>
-
       <div class="spacer"></div>
-      <div class="row">
-        <input id="meetingTitle" placeholder="Meeting title" />
-        <input id="meetingTime" type="datetime-local" />
-        <button id="createBtn">Create Meeting</button>
+      <p id="loginStatus" class="muted"></p>
+    </section>
+
+    <!-- ADMIN AREA (hidden until unlocked) -->
+    <section id="adminArea" class="hidden">
+      <!-- Members -->
+      <div class="card">
+        <h1>Memberships</h1>
+
+        <h2>Pending</h2>
+        <div id="pendingList" class="muted">Loading…</div>
+
+        <div class="spacer"></div>
+        <h2>Approved</h2>
+        <div id="approvedList" class="muted">Loading…</div>
       </div>
 
-      <p class="muted" id="status"></p>
-    </div>
+      <!-- Create Meeting (only visible when admin) -->
+      <div class="card">
+        <h1>Create Meeting</h1>
+        <div class="row">
+          <input id="meetingTitle" placeholder="Meeting title">
+          <input id="meetingTime" type="datetime-local">
+          <button id="createMeetingBtn">Create</button>
+        </div>
+        <div class="spacer"></div>
+        <p id="meetingStatus" class="muted"></p>
+      </div>
+    </section>
   </main>
 
   <script>
+    // -------- API endpoints (edit here if your routes differ) ----------
+    const API = {
+      adminLogin: '/auth/admin',
+      listMembers: (status) => `/admin/members?status=${encodeURIComponent(status)}`,
+      approve: (id) => `/admin/members/${encodeURIComponent(id)}/approve`,
+      revoke: (id) => `/admin/members/${encodeURIComponent(id)}/revoke`,
+      toggleAdmin: (id) => `/admin/members/${encodeURIComponent(id)}/admin`, // expects {isAdmin:true/false}
+      meetings: '/meetings'
+    };
+
+    // -------- Helpers ----------
     const $ = (s)=>document.querySelector(s);
-    const statusEl = $("#status");
+    const loginCard = $("#loginCard");
+    const adminArea = $("#adminArea");
+    const loginStatus = $("#loginStatus");
+    const pendingList = $("#pendingList");
+    const approvedList = $("#approvedList");
+    const meetingStatus = $("#meetingStatus");
 
-    // --- Admin login (PIN is requested server-side; no auto-login) ---
-    $("#adminLoginBtn").addEventListener("click", async () => {
-      const pin = $("#pin").value.trim();
-      if(!pin){ statusEl.textContent = "Enter your admin PIN."; return; }
-      statusEl.textContent = "Checking PIN…";
-      try{
-        const res = await fetch("/auth/admin", {
-          method:"POST",
-          headers:{ "content-type":"application/json" },
-          body: JSON.stringify({ pin })
-        });
-        const data = await res.json();
-        statusEl.textContent = data.ok ? "Admin unlocked." : (data.error || "PIN rejected.");
-      }catch(e){
-        statusEl.textContent = "Network error.";
+    function gate(isAdmin){
+      if(isAdmin){
+        loginCard.classList.add("hidden");
+        adminArea.classList.remove("hidden");
+      }else{
+        adminArea.classList.add("hidden");
+        loginCard.classList.remove("hidden");
       }
-    });
+    }
 
-    // --- Create meeting (requires x-admin-pin header set server-side or cookie-based admin auth) ---
-    $("#createBtn").addEventListener("click", async () => {
-      const title = $("#meetingTitle").value.trim();
-      const startsAtLocal = $("#meetingTime").value;
-      if(!title || !startsAtLocal){
-        statusEl.textContent = "Title and time required.";
+    function fmtPhone(x){
+      if(!x) return '';
+      const d = (''+x).replace(/\D/g,'').slice(-10);
+      return d.replace(/(\d{3})(\d{3})(\d{4})/,'($1) $2-$3');
+    }
+
+    function renderMembers(container, members, kind){
+      if(!Array.isArray(members) || members.length===0){
+        container.innerHTML = `<span class="muted">No ${kind} members.</span>`;
         return;
       }
-      statusEl.textContent = "Creating…";
+      container.innerHTML = '';
+      members.forEach(m=>{
+        const id = m.id || m.memberId || m.uid || m._id || '';
+        const name = m.name || m.displayName || 'Member';
+        const phone = m.phone || m.phoneNumber || '';
+        const email = m.email || '';
+        const isAdmin = !!(m.isAdmin);
+
+        const row = document.createElement('div');
+        row.className = 'tr';
+        row.innerHTML = `
+          <div><strong>${name}</strong><div class="muted">${email || '—'}</div></div>
+          <div class="pill">${fmtPhone(phone) || '—'}</div>
+          <div class="pill">${isAdmin ? 'Admin' : 'Member'}</div>
+          <div class="row" style="justify-content:end">
+            ${kind==='pending'
+              ? `<button class="btn-sm" data-act="approve" data-id="${id}">Approve</button>`
+              : `<button class="btn-sm" data-act="revoke" data-id="${id}">Revoke</button>
+                 <button class="btn-sm" data-act="toggle-admin" data-id="${id}" data-admin="${isAdmin?1:0}">
+                   ${isAdmin?'Remove Admin':'Make Admin'}
+                 </button>`}
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      // Wire actions
+      container.querySelectorAll('[data-act="approve"]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          btn.disabled = true;
+          await fetch(API.approve(btn.dataset.id), {method:'POST', credentials:'include'});
+          loadMembers(); // refresh
+        };
+      });
+      container.querySelectorAll('[data-act="revoke"]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          btn.disabled = true;
+          await fetch(API.revoke(btn.dataset.id), {method:'POST', credentials:'include'});
+          loadMembers();
+        };
+      });
+      container.querySelectorAll('[data-act="toggle-admin"]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          btn.disabled = true;
+          const want = btn.dataset.admin!=='1';
+          await fetch(API.toggleAdmin(btn.dataset.id), {
+            method:'POST',
+            headers:{'content-type':'application/json'},
+            credentials:'include',
+            body: JSON.stringify({isAdmin: want})
+          });
+          loadMembers();
+        };
+      });
+    }
+
+    async function loadMembers(){
+      pendingList.textContent = 'Loading…';
+      approvedList.textContent = 'Loading…';
       try{
-        const resp = await fetch("/meetings", {
-          method:"POST",
-          headers:{ "content-type":"application/json" /* server will check admin auth */ },
-          body: JSON.stringify({ title, startsAt: new Date(startsAtLocal).toISOString() })
-        });
-        const data = await resp.json();
-        statusEl.textContent = data.ok ? "Meeting created." : (data.error || "Failed.");
+        const [p,a] = await Promise.all([
+          fetch(API.listMembers('pending'), {credentials:'include'}).then(r=>r.json()),
+          fetch(API.listMembers('approved'), {credentials:'include'}).then(r=>r.json()),
+        ]);
+        // Accept either {ok:true, members:[...]} or raw arrays
+        const pend = Array.isArray(p) ? p : (p.members||p.data||[]);
+        const appr = Array.isArray(a) ? a : (a.members||a.data||[]);
+        renderMembers(pendingList, pend, 'pending');
+        renderMembers(approvedList, appr, 'approved');
       }catch(e){
-        statusEl.textContent = "Network error.";
+        pendingList.innerHTML = `<span class="muted">Could not load pending.</span>`;
+        approvedList.innerHTML = `<span class="muted">Could not load approved.</span>`;
+      }
+    }
+
+    // -------- Events ----------
+    $("#unlockBtn").addEventListener("click", async ()=>{
+      const pin = $("#pin").value.trim();
+      if(!pin){ loginStatus.textContent = "Enter your admin PIN."; return; }
+      loginStatus.textContent = "Checking PIN…";
+      try{
+        const res = await fetch(API.adminLogin, {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          credentials:'include',               // <— important so the session cookie sticks
+          body: JSON.stringify({pin})
+        });
+        const data = await res.json();
+        if(data && data.ok){
+          loginStatus.textContent = "Unlocked.";
+          gate(true);          // hide login, show admin area
+          loadMembers();       // populate lists
+        }else{
+          loginStatus.textContent = (data && data.error) ? data.error : "PIN rejected.";
+        }
+      }catch(e){
+        loginStatus.textContent = "Network error.";
       }
     });
+
+    $("#createMeetingBtn").addEventListener("click", async ()=>{
+      const title = $("#meetingTitle").value.trim();
+      const when = $("#meetingTime").value;
+      if(!title || !when){ meetingStatus.textContent = "Title and time required."; return; }
+      meetingStatus.textContent = "Creating…";
+      try{
+        const r = await fetch(API.meetings, {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          credentials:'include',
+          body: JSON.stringify({ title, startsAt: new Date(when).toISOString() })
+        });
+        const data = await r.json();
+        meetingStatus.textContent = data.ok ? "Meeting created." : (data.error || "Failed.");
+      }catch(e){
+        meetingStatus.textContent = "Network error.";
+      }
+    });
+
+    // Optional: if the server already set a persistent admin cookie,
+    // uncomment this probe to auto-enter the admin area on refresh.
+    // (We just try a protected read; if it succeeds, we’re admin.)
+    /*
+    fetch(API.listMembers('pending'), {credentials:'include'})
+      .then(r=>{ if(r.ok){ gate(true); loadMembers(); }});
+    */
   </script>
 </body>
 </html>
