@@ -5,30 +5,88 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Snoot Club Admin</title>
   <style>
-    :root { color-scheme: light dark; --bg:#0b0b0b; --fg:#ddd; --muted:#888; --ok:#18a558; --err:#d33; --card:#1b1b1b; --line:#2a2a2a; }
-    *{box-sizing:border-box} body{margin:0;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
-    header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
-    header h1{margin:0;font-size:16px;font-weight:600}
-    main{padding:16px;display:grid;gap:16px;grid-template-columns:1fr}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    input,button,select,textarea{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#111;color:var(--fg);outline:none}
-    input:disabled,button:disabled{opacity:.6}
-    button{cursor:pointer}
-    .muted{color:var(--muted)}
-    .ok{color:var(--ok)} .err{color:var(--err)}
-    .list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-    .item{display:flex;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#141414}
-    .grow{flex:1}
-    .pill{padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px}
-    .right{margin-left:auto}
-    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
-    @media (min-width:900px){ .grid2{grid-template-columns:1fr 1fr}}
-    .hidden{display:none}
+    :root{
+      --sc-navy:#0D2139;
+      --sc-silver:#B8BAB6;
+      --sc-slate:#676F79;
+      --sc-navy-dark:#081D35;
+      --sc-navy-darker:#041932;
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--sc-navy);
+      color:var(--sc-silver);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    }
+
+    /* Header */
+    .app-header{
+      display:flex; align-items:center; gap:14px;
+      padding:18px 20px;
+      border-bottom:1px solid var(--sc-navy-dark);
+      background:linear-gradient(180deg, var(--sc-navy) 0%, var(--sc-navy-dark) 100%);
+      position:sticky; top:0; z-index:10;
+    }
+    .logo{
+      height:44px; width:auto; display:block;
+      filter: drop-shadow(0 1px 0 var(--sc-navy-darker));
+      user-select:none;
+    }
+    .brand{
+      line-height:1.1;
+    }
+    .brand-title{
+      font-size: clamp(18px, 2.4vw, 22px);
+      letter-spacing:.04em; font-weight:700;
+      color:var(--sc-silver);
+    }
+    .brand-sub{
+      font-size:12px; color:var(--sc-slate); letter-spacing:.12em;
+    }
+
+    /* Page shell */
+    .wrap{max-width:980px; margin:28px auto; padding:0 20px}
+    .card{
+      background:rgba(4,25,50,.55);
+      border:1px solid var(--sc-navy-dark);
+      border-radius:var(--radius);
+      box-shadow:0 12px 30px rgba(4,25,50,.45), inset 0 1px 0 rgba(184,186,182,.06);
+      padding:20px;
+    }
+    h1{margin:.2em 0 .6em; font-size:26px; color:var(--sc-silver)}
+
+    /* Buttons / inputs */
+    .row{display:flex; gap:10px; flex-wrap:wrap}
+    input,button,select{
+      font:inherit;
+      border-radius:12px;
+      border:1px solid var(--sc-navy-dark);
+      background:#0b1f34;
+      color:var(--sc-silver);
+      padding:10px 12px;
+      outline:none;
+    }
+    input::placeholder{color:#7e8792}
+    button{
+      background:linear-gradient(180deg, #0f2742 0%, #0b1f34 100%);
+      border:1px solid var(--sc-navy-dark);
+      font-weight:600; letter-spacing:.02em; cursor:pointer;
+    }
+    button:hover{filter:brightness(1.07)}
+    button:active{transform:translateY(1px)}
+    .muted{color:var(--sc-slate)}
+
+    /* Small helpers */
+    .spacer{height:14px}
   </style>
 </head>
 <body>
   <header>
+    <img id="brandLogo" src="/admin/logo.png" alt="Logo" />
     <h1>🔐 Snoot Club Admin</h1>
     <span id="status" class="muted">locked</span>
     <span class="right"></span>
