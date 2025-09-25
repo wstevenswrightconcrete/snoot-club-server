@@ -1,4 +1,5 @@
-// index.js (server) — Snoot Club server with OTP auth, meetings, and chat
+// server/index.js — Snoot Club server (OTP auth, meetings, chat, admin-by-PIN; no auto-login)
+
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -20,7 +21,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // ---------- Data location (persist with DATA_DIR env or falls back to app dir) ----------
-const DATA_DIR = process.env.DATA_DIR || __dirname; // Use /data if you attach a Render Disk
+const DATA_DIR = process.env.DATA_DIR || __dirname; // if using Render Disk, set DATA_DIR=/data
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 
@@ -49,7 +50,7 @@ const byStatus = (status) => db.data.members.filter(m => m.status === status);
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 function makeCode()  { return String(Math.floor(100000 + Math.random() * 900000)); }
 
-// Normalize phone into US E.164-ish (+1XXXXXXXXXX)
+// Normalize phone into +1XXXXXXXXXX (US) if possible
 function normalizeUS(phone) {
   const digits = (phone || '').replace(/\D/g, '');
   if (!digits) return '';
@@ -59,7 +60,7 @@ function normalizeUS(phone) {
   return `+${digits}`;
 }
 
-// In-memory OTP store
+// OTP (in-memory)
 const otpStore = new Map(); // phone -> { code, expMs }
 function setOtp(phone) {
   const code = makeCode();
@@ -93,32 +94,27 @@ function isAdminReq(req) {
   const pin = (req.headers['x-admin-pin'] || req.query.pin || '').toString().trim();
   return pin && pin === ADMIN_PIN;
 }
+function requireAdmin(req, res, next) {
+  if (!isAdminReq(req)) return res.status(401).json({ ok:false, error:'admin auth required' });
+  next();
+}
 
-// NEW: allow admin via PIN OR via Bearer token for an approved isAdmin member
-async function requireAdmin(req, res, next) {
-  // 1) Admin PIN (used by the web admin page)
+// Allow either a logged-in member (Bearer) OR an admin with PIN
+async function requireMemberOrAdmin(req, res, next) {
   if (isAdminReq(req)) return next();
-
-  // 2) Bearer token for approved admin member (used by the mobile app)
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (token) {
-    const m = await memberByToken(token);
-    if (m && m.isAdmin) { req.member = m; return next(); }
-  }
-
-  return res.status(401).json({ ok:false, error:'admin auth required' });
+  return requireAuth(req, res, next);
 }
 
 // ---------- Health ----------
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// ---------- Auth: Admin PIN (web page only) ----------
+// ---------- Admin PIN check (no auto-login; UI must POST to this) ----------
 app.post('/auth/admin', (req, res) => {
   const { pin } = req.body || {};
   res.json({ ok: pin === ADMIN_PIN });
 });
 
-// ---------- Auth: Member Registration & OTP Login ----------
+// ---------- Member registration & OTP login ----------
 app.post('/register', async (req, res) => {
   const { phone, name, email, expoToken } = req.body || {};
   const norm = normalizeUS(phone);
@@ -161,8 +157,7 @@ app.post('/auth/request-code', async (req, res) => {
   if (twilioClient && TWILIO_FROM) {
     try {
       await twilioClient.messages.create({
-        to: norm,
-        from: TWILIO_FROM,
+        to: norm, from: TWILIO_FROM,
         body: `Snoot Club login code: ${code} (valid 10 minutes).`,
       });
       return res.json({ ok:true, sent:true });
@@ -170,7 +165,7 @@ app.post('/auth/request-code', async (req, res) => {
       console.error('SMS error', e?.message || e);
     }
   }
-  // Fallback for testing when Twilio is missing or trial restrictions apply
+  // fallback for testing (no Twilio or trial)
   res.json({ ok:true, sent:false, demoCode: code });
 });
 
@@ -191,7 +186,7 @@ app.post('/auth/verify-code', async (req, res) => {
   if (expoToken && !m.expoTokens.includes(expoToken)) m.expoTokens.push(expoToken);
   await db.write();
 
-  res.json({ ok:true, token, member: { id:m.id, name:m.name, email:m.email, phone:m.phone, isAdmin: m.isAdmin } });
+  res.json({ ok:true, token, member: { id:m.id, name:m.name, email:m.email, phone:m.phone } });
 });
 
 app.post('/auth/logout', requireAuth, async (req, res) => {
@@ -203,10 +198,10 @@ app.post('/auth/logout', requireAuth, async (req, res) => {
 
 app.get('/me', requireAuth, (req, res) => {
   const m = req.member;
-  res.json({ id:m.id, name:m.name, email:m.email, phone:m.phone, status:m.status, isAdmin: m.isAdmin });
+  res.json({ id:m.id, name:m.name, email:m.email, phone:m.phone, status:m.status });
 });
 
-// ---------- Admin: Members ----------
+// ---------- Admin: members ----------
 app.get('/members', requireAdmin, async (req, res) => {
   const { status } = req.query;
   await db.read();
@@ -248,23 +243,11 @@ app.delete('/members/:id', requireAdmin, async (req, res) => {
 });
 
 // ---------- Meetings ----------
-// Allow Admin via PIN OR any approved member via Bearer to read meetings
-app.get('/meetings', async (req, res) => {
-  // Admin (web) via PIN
-  if (isAdminReq(req)) {
-    await db.read();
-    return res.json(db.data.meetings.sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
-  }
-  // Member (app) via Bearer
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const m = token ? await memberByToken(token) : null;
-  if (!m) return res.status(401).json({ ok:false, error:'auth required' });
-
+app.get('/meetings', requireMemberOrAdmin, async (_req, res) => {
   await db.read();
   res.json(db.data.meetings.sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
 });
 
-// Create meeting (admin only). Send optional SMS + push on create.
 app.post('/meetings', requireAdmin, async (req, res) => {
   const m = req.body || {};
   const meeting = {
@@ -282,7 +265,7 @@ app.post('/meetings', requireAdmin, async (req, res) => {
 
   const approved = byStatus('approved');
 
-  // SMS on create (Twilio)
+  // SMS on create
   if ((m.sendSms ?? true) && twilioClient && TWILIO_FROM) {
     const when = new Date(meeting.startsAt).toLocaleString();
     const body = `Snoot Club: ${meeting.title} at ${meeting.location || 'TBA'} on ${when}. Reply STOP to opt out.`;
@@ -292,7 +275,7 @@ app.post('/meetings', requireAdmin, async (req, res) => {
     }
   }
 
-  // Push on create (Expo)
+  // Push on create
   if (m.sendPush ?? true) {
     const tokens = approved.flatMap(mem => mem.expoTokens || []);
     const messages = [];
@@ -330,7 +313,6 @@ app.post('/tasks/notify-24h', async (req, res) => {
     let smsCount = 0, pushCount = 0;
 
     for (const meeting of due) {
-      // SMS
       if (twilioClient && TWILIO_FROM) {
         const when = new Date(meeting.startsAt).toLocaleString();
         const body = `Snoot Club: ${meeting.title} at ${meeting.location || 'TBA'} on ${when}. Reply STOP to opt out.`;
@@ -339,7 +321,6 @@ app.post('/tasks/notify-24h', async (req, res) => {
           catch (e) { console.error('SMS error', e?.message || e); }
         }
       }
-      // Push
       const tokens = approved.flatMap(mem => mem.expoTokens || []);
       const messages = [];
       for (const t of tokens) {
@@ -363,17 +344,14 @@ app.post('/tasks/notify-24h', async (req, res) => {
   }
 });
 
-// ---------- Start HTTP server & Socket.IO (chat) ----------
+// ---------- Start & Socket.IO (chat) ----------
 const port = process.env.PORT || 3333;
 const server = app.listen(port, () => {
   console.log('Snoot Club server on ' + port + '  (DB at ' + DB_PATH + ')');
 });
 
-const io = new SocketIOServer(server, {
-  cors: { origin: '*' } // lock down in production
-});
+const io = new SocketIOServer(server, { cors: { origin: '*' } });
 
-// Socket auth with Bearer token
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token || '';
@@ -384,7 +362,6 @@ io.use(async (socket, next) => {
   } catch (e) { next(e); }
 });
 
-// Chat events
 io.on('connection', async (socket) => {
   try {
     await db.read();
@@ -411,7 +388,6 @@ io.on('connection', async (socket) => {
   });
 });
 
-// REST for chat history (protected)
 app.get('/chat/messages', requireAuth, async (_req, res) => {
   await db.read();
   res.json((db.data.chat || []).slice(-100));
