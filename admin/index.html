@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Snoot Club Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snoot Club • Admin</title>
+
+  <!-- Brand colors -->
   <style>
     :root{
       --sc-navy:#0D2139;
@@ -83,313 +85,83 @@
     /* Small helpers */
     .spacer{height:14px}
   </style>
+
+  <link rel="icon" href="./logo.png" />
 </head>
 <body>
-  <header>
-    <img id="brandLogo" src="/admin/logo.png" alt="Logo" />
-    <h1>🔐 Snoot Club Admin</h1>
-    <span id="status" class="muted">locked</span>
-    <span class="right"></span>
-    <button id="btnLogout" class="hidden">Lock</button>
+  <header class="app-header">
+    <!-- Use a relative path; fallback tries /admin/logo.png if needed -->
+    <img class="logo" src="./logo.png" alt="Snoot Club" onerror="this.onerror=null;this.src='/admin/logo.png'">
+    <div class="brand">
+      <div class="brand-title">SNOOT CLUB</div>
+      <div class="brand-sub">EST 1937 • ADMIN</div>
+    </div>
   </header>
 
-  <main>
-    <!-- Login -->
-    <section id="loginCard" class="card">
+  <main class="wrap">
+    <div class="card">
+      <h1>Admin Dashboard</h1>
+
+      <!-- example: your existing controls go here -->
       <div class="row">
-        <label for="pin">Admin PIN</label>
-        <input id="pin" type="password" inputmode="numeric" placeholder="Enter PIN" />
-        <button id="btnUnlock">Unlock</button>
-        <span id="loginMsg" class="muted"></span>
-      </div>
-      <p class="muted" style="margin-top:8px">PIN is checked by the server and never stored permanently (kept in memory only for this tab until you click “Lock”).</p>
-    </section>
-
-    <!-- App -->
-    <section id="app" class="grid2 hidden">
-      <!-- Members -->
-      <div class="card">
-        <h3 style="margin-top:0">Members</h3>
-        <div class="row">
-          <button id="btnLoadPending">Load Pending</button>
-          <button id="btnLoadAll">Load All</button>
-          <span id="membersMsg" class="muted"></span>
-        </div>
-        <div id="membersList" class="list"></div>
+        <input id="pin" placeholder="Enter Admin PIN" inputmode="numeric" maxlength="6" />
+        <button id="adminLoginBtn">Unlock Admin</button>
       </div>
 
-      <!-- Create meeting -->
-      <div class="card">
-        <h3 style="margin-top:0">Create Meeting</h3>
-        <div class="row">
-          <input id="mtTitle" placeholder="Title" class="grow" />
-        </div>
-        <div class="row">
-          <input id="mtLocation" placeholder="Location" class="grow" />
-        </div>
-        <div class="row">
-          <textarea id="mtDesc" placeholder="Description" rows="4" class="grow"></textarea>
-        </div>
-        <div class="row">
-          <label>Starts</label>
-          <input id="mtStart" type="datetime-local" />
-          <label>Reminder (min)</label>
-          <input id="mtRem" type="number" min="5" step="5" value="60" style="width:100px" />
-        </div>
-        <div class="row">
-          <label class="row"><input type="checkbox" id="mtSms" checked />&nbsp;SMS on create</label>
-          <label class="row"><input type="checkbox" id="mtPush" checked />&nbsp;Push on create</label>
-          <button id="btnCreate">Create</button>
-          <span id="createMsg" class="muted"></span>
-        </div>
+      <div class="spacer"></div>
+      <div class="row">
+        <input id="meetingTitle" placeholder="Meeting title" />
+        <input id="meetingTime" type="datetime-local" />
+        <button id="createBtn">Create Meeting</button>
       </div>
 
-      <!-- Meetings list (optional quick view) -->
-      <div class="card" style="grid-column:1/-1">
-        <div class="row">
-          <h3 style="margin:0">Meetings</h3>
-          <button id="btnLoadMeetings" class="right">Refresh</button>
-        </div>
-        <div id="meetingsList" class="list"></div>
-      </div>
-    </section>
+      <p class="muted" id="status"></p>
+    </div>
   </main>
 
-<script>
-(() => {
-  const API = location.origin;
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const statusEl = $("#status");
 
-  const els = {
-    status:      document.getElementById('status'),
-    loginCard:   document.getElementById('loginCard'),
-    pin:         document.getElementById('pin'),
-    btnUnlock:   document.getElementById('btnUnlock'),
-    btnLogout:   document.getElementById('btnLogout'),
-    loginMsg:    document.getElementById('loginMsg'),
-    app:         document.getElementById('app'),
-    btnLoadPending: document.getElementById('btnLoadPending'),
-    btnLoadAll:  document.getElementById('btnLoadAll'),
-    membersMsg:  document.getElementById('membersMsg'),
-    membersList: document.getElementById('membersList'),
-    mtTitle:     document.getElementById('mtTitle'),
-    mtLocation:  document.getElementById('mtLocation'),
-    mtDesc:      document.getElementById('mtDesc'),
-    mtStart:     document.getElementById('mtStart'),
-    mtRem:       document.getElementById('mtRem'),
-    mtSms:       document.getElementById('mtSms'),
-    mtPush:      document.getElementById('mtPush'),
-    btnCreate:   document.getElementById('btnCreate'),
-    createMsg:   document.getElementById('createMsg'),
-    btnLoadMeetings: document.getElementById('btnLoadMeetings'),
-    meetingsList: document.getElementById('meetingsList'),
-  };
-
-  const getPin = () => sessionStorage.getItem('adminPin') || '';
-  const setPin = (pin) => pin ? sessionStorage.setItem('adminPin', pin) : sessionStorage.removeItem('adminPin');
-
-  async function postJSON(path, body) {
-    const r = await fetch(API + path, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body || {})
-    });
-    return r.json().catch(() => ({}));
-  }
-
-  async function adminFetch(method, path, body) {
-    const pin = getPin();
-    const r = await fetch(API + path + (method === 'GET' && body ? '?' + new URLSearchParams(body) : ''), {
-      method,
-      headers: { 'Content-Type': 'application/json', 'x-admin-pin': pin },
-      body: method === 'GET' ? undefined : JSON.stringify(body || {})
-    });
-    const data = await r.json().catch(() => ({}));
-    if (r.status === 401) throw new Error('unauthorized');
-    return data;
-  }
-
-  function setLockedUI(locked) {
-    els.status.textContent = locked ? 'locked' : 'unlocked';
-    els.loginCard.classList.toggle('hidden', !locked);
-    els.app.classList.toggle('hidden', locked);
-    els.btnLogout.classList.toggle('hidden', locked);
-    if (locked) { els.pin.value = ''; els.pin.focus(); }
-  }
-
-  async function tryUnlock(pin) {
-    els.btnUnlock.disabled = true;
-    els.pin.disabled = true;
-    els.loginMsg.textContent = 'Checking…';
-    try {
-      const res = await postJSON('/auth/admin', { pin });
-      if (res && res.ok === true) {
-        setPin(pin);
-        setLockedUI(false);
-        els.loginMsg.textContent = '';
-        await loadPending();
-        await loadMeetings();
-      } else {
-        els.loginMsg.textContent = 'Wrong PIN';
-        els.loginMsg.className = 'err';
+    // --- Admin login (PIN is requested server-side; no auto-login) ---
+    $("#adminLoginBtn").addEventListener("click", async () => {
+      const pin = $("#pin").value.trim();
+      if(!pin){ statusEl.textContent = "Enter your admin PIN."; return; }
+      statusEl.textContent = "Checking PIN…";
+      try{
+        const res = await fetch("/auth/admin", {
+          method:"POST",
+          headers:{ "content-type":"application/json" },
+          body: JSON.stringify({ pin })
+        });
+        const data = await res.json();
+        statusEl.textContent = data.ok ? "Admin unlocked." : (data.error || "PIN rejected.");
+      }catch(e){
+        statusEl.textContent = "Network error.";
       }
-    } catch (e) {
-      els.loginMsg.textContent = 'Network error';
-      els.loginMsg.className = 'err';
-    } finally {
-      els.btnUnlock.disabled = false;
-      els.pin.disabled = false;
-    }
-  }
-
-  async function loadPending() {
-    els.membersMsg.textContent = 'Loading pending…';
-    try {
-      const list = await adminFetch('GET', '/members', { status: 'pending' });
-      renderMembers(list);
-      els.membersMsg.textContent = `${list.length} pending`;
-    } catch (e) {
-      onUnauthorized(e);
-    }
-  }
-
-  async function loadAll() {
-    els.membersMsg.textContent = 'Loading all…';
-    try {
-      const list = await adminFetch('GET', '/members');
-      renderMembers(list);
-      els.membersMsg.textContent = `${list.length} total`;
-    } catch (e) {
-      onUnauthorized(e);
-    }
-  }
-
-  function renderMembers(arr) {
-    els.membersList.innerHTML = '';
-    (arr || []).forEach(m => {
-      const div = document.createElement('div');
-      div.className = 'item';
-      div.innerHTML = `
-        <div class="grow">
-          <div><strong>${escapeHtml(m.name || m.phone || 'Member')}</strong></div>
-          <div class="muted">${m.phone || ''} ${m.email ? ' · ' + m.email : ''}</div>
-          <div class="pill">${m.status}${m.isAdmin ? ' · admin' : ''}</div>
-        </div>
-        <div class="row">
-          ${m.status !== 'approved' ? `<button data-act="approve">Approve</button>` : ''}
-          ${m.status !== 'rejected' ? `<button data-act="reject">Reject</button>` : ''}
-          ${!m.isAdmin ? `<button data-act="makeAdmin">Make Admin</button>` : `<button data-act="removeAdmin">Remove Admin</button>`}
-          <button data-act="delete" style="border-color:#552">Delete</button>
-        </div>
-      `;
-      div.addEventListener('click', async (ev) => {
-        const b = ev.target.closest('button'); if (!b) return;
-        const act = b.getAttribute('data-act');
-        try {
-          if (act === 'approve') await adminFetch('POST', `/members/${m.id}/approve`);
-          if (act === 'reject') await adminFetch('POST', `/members/${m.id}/reject`);
-          if (act === 'makeAdmin') await adminFetch('POST', `/members/${m.id}/make-admin`);
-          if (act === 'removeAdmin') await adminFetch('POST', `/members/${m.id}/remove-admin`);
-          if (act === 'delete') await adminFetch('DELETE', `/members/${m.id}`);
-          await loadPending();
-        } catch (e) { onUnauthorized(e); }
-      });
-      els.membersList.appendChild(div);
     });
-  }
 
-  async function createMeeting() {
-    els.createMsg.textContent = 'Creating…';
-    els.btnCreate.disabled = true;
-    try {
-      const startsAt = toIso(els.mtStart.value);
-      const body = {
-        title: els.mtTitle.value.trim(),
-        description: els.mtDesc.value.trim(),
-        location: els.mtLocation.value.trim(),
-        startsAt,
-        reminderMinutes: Number(els.mtRem.value || 60),
-        sendSms: !!els.mtSms.checked,
-        sendPush: !!els.mtPush.checked
-      };
-      const res = await adminFetch('POST', '/meetings', body);
-      if (res && res.id) {
-        els.createMsg.textContent = '✅ Created';
-        els.createMsg.className = 'ok';
-        await loadMeetings();
-      } else {
-        els.createMsg.textContent = 'Failed';
-        els.createMsg.className = 'err';
+    // --- Create meeting (requires x-admin-pin header set server-side or cookie-based admin auth) ---
+    $("#createBtn").addEventListener("click", async () => {
+      const title = $("#meetingTitle").value.trim();
+      const startsAtLocal = $("#meetingTime").value;
+      if(!title || !startsAtLocal){
+        statusEl.textContent = "Title and time required.";
+        return;
       }
-    } catch (e) { onUnauthorized(e); }
-    finally { els.btnCreate.disabled = false; }
-  }
-
-  async function loadMeetings() {
-    // uses member-protected route; just show count for admin sanity via PIN header is not needed here
-    try {
-      // We can’t call /meetings without a member token; so just show nothing here.
-      // (Keeping this section minimal. Admin can still create meetings above.)
-      els.meetingsList.innerHTML = `<div class="muted">Note: /meetings is member-protected; this panel only confirms create status.</div>`;
-    } catch {}
-  }
-
-  function onUnauthorized(e) {
-    if (String(e && e.message) === 'unauthorized') {
-      setPin('');
-      setLockedUI(true);
-      els.loginMsg.textContent = 'Session locked. Enter PIN again.';
-      els.loginMsg.className = 'muted';
-    }
-  }
-
-  // Utilities
-  function toIso(local) {
-    // local is "YYYY-MM-DDTHH:MM"
-    if (!local) return '';
-    const d = new Date(local);
-    // preserve local value as-is; browsers may treat as local time
-    return new Date(
-      d.getFullYear(), d.getMonth(), d.getDate(),
-      d.getHours(), d.getMinutes(), 0, 0
-    ).toISOString();
-  }
-  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
-
-  // Wire up
-  els.btnUnlock.addEventListener('click', () => {
-    const pin = els.pin.value.trim();
-    if (pin) tryUnlock(pin);
-  });
-  els.pin.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') els.btnUnlock.click();
-  });
-  els.btnLogout.addEventListener('click', () => {
-    setPin('');
-    setLockedUI(true);
-  });
-  els.btnLoadPending.addEventListener('click', loadPending);
-  els.btnLoadAll.addEventListener('click', loadAll);
-  els.btnCreate.addEventListener('click', createMeeting);
-  els.btnLoadMeetings.addEventListener('click', loadMeetings);
-
-  // Auto-try saved PIN (session only, not persistent)
-  (async () => {
-    const pin = getPin();
-    if (pin) {
-      try {
-        const res = await postJSON('/auth/admin', { pin });
-        if (res && res.ok) {
-          setLockedUI(false);
-          await loadPending();
-          return;
-        } else {
-          setPin('');
-        }
-      } catch {}
-    }
-    setLockedUI(true);
-  })();
-})();
-</script>
+      statusEl.textContent = "Creating…";
+      try{
+        const resp = await fetch("/meetings", {
+          method:"POST",
+          headers:{ "content-type":"application/json" /* server will check admin auth */ },
+          body: JSON.stringify({ title, startsAt: new Date(startsAtLocal).toISOString() })
+        });
+        const data = await resp.json();
+        statusEl.textContent = data.ok ? "Meeting created." : (data.error || "Failed.");
+      }catch(e){
+        statusEl.textContent = "Network error.";
+      }
+    });
+  </script>
 </body>
 </html>
