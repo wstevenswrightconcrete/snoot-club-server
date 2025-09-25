@@ -445,6 +445,13 @@ app.get('/chat/messages', requireAuth, async (_req, res) => {
   res.json((db.data.chat || []).slice(-100));
 });
 
+// Serve the admin console (PIN) no matter what path under /admin is hit
+app.use('/admin', express.static(path.join(__dirname, 'admin'), { index: 'index.html' }));
+app.get(['/admin', '/admin/*'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'admin', 'index.html'));
+});
+
+
 // ---- Mount email/password auth + REST chat under /addons ----
 app.use('/addons', createAuthChat({
   store: addonStore,
